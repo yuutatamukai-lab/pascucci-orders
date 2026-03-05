@@ -4,6 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
   <title>発注</title>
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#b40000">
 
   <style>
     body {
@@ -523,6 +525,11 @@ document.getElementById("submit").onclick = async () => {
   location.href = "./history.html";
 };
 </script>
-
+<script>
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("/service-worker.js")
+    .catch(err => console.error("Service Worker registration failed:", err));
+}
+</script>
 </body>
 </html>
