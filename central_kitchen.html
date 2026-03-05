@@ -2,6 +2,7 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>発注一覧</title>
   <style>
     body {
@@ -22,6 +23,9 @@
       width: 100%;
       border-collapse: collapse;
       margin-top: 12px;
+      display: block;
+      overflow-x: auto;
+      white-space: nowrap;
     }
     th, td {
       border-bottom: 1px solid #ccc;
@@ -39,6 +43,45 @@
     summary {
       font-size: 22px;
       padding: 8px 0;
+    }
+    /* モバイル最適化 */
+    @media (max-width: 768px) {
+      body {
+        padding: 10px;
+      }
+
+      h1 {
+        font-size: 22px;
+      }
+
+      #currentStoreLabel {
+        font-size: 18px;
+      }
+
+      .storeBtn {
+        font-size: 18px;
+        padding: 14px 16px;
+        width: 100%;
+        margin-right: 0;
+      }
+
+      button {
+        font-size: 18px;
+        padding: 14px 16px;
+      }
+
+      th, td {
+        font-size: 18px;
+        padding: 10px 6px;
+      }
+
+      summary {
+        font-size: 18px;
+      }
+
+      #todayNote {
+        font-size: 18px;
+      }
     }
     /* 印刷専用スタイル */
 @media print {

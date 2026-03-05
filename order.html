@@ -34,6 +34,7 @@
       padding: 12px;
       border-radius: 14px;
       display: flex;
+      flex-wrap: wrap;
       justify-content: space-between;
       gap: 10px;
       margin-bottom: 24px;
@@ -101,14 +102,17 @@
     }
 
     .qty-control button {
-      font-size: 18px;
-      padding: 6px 12px;
+      font-size: 20px;
+      padding: 10px 14px;
+      border-radius: 8px;
     }
 
     .qty-control input {
-      width: 60px;
+      width: 70px;
       text-align: center;
-      font-size: 18px;
+      font-size: 20px;
+      padding: 6px;
+      border-radius: 6px;
       appearance: textfield;
       -moz-appearance: textfield;
     }
@@ -131,12 +135,79 @@
       margin-top: 24px;
       display: flex;
       gap: 12px;
+      flex-wrap: wrap;
     }
 
     .bottom-menu button {
       flex: 1;
       padding: 12px;
       font-size: 14px;
+    }
+
+    /* ===== モバイル最適化 ===== */
+    @media (max-width: 768px) {
+
+      .page-title {
+        font-size: 24px;
+      }
+
+      #storeInfo {
+        font-size: 16px;
+      }
+
+      #categoryButtons button {
+        font-size: 16px;
+        padding: 12px;
+        flex: 1 1 30%;
+      }
+
+      .item-row {
+        padding: 14px 10px;
+      }
+
+      .item-name {
+        font-size: 17px;
+      }
+
+      .qty-control {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .qty-control button {
+        font-size: 22px;
+        padding: 10px 16px;
+      }
+
+      .qty-control input {
+        width: 64px;
+        font-size: 20px;
+      }
+
+      #dateSelector div[style*="display:flex"] {
+        flex-direction: column;
+      }
+
+      #submit {
+        font-size: 22px;
+        padding: 22px;
+      }
+
+      .bottom-menu {
+        flex-direction: column;
+      }
+
+      .bottom-menu button {
+        width: 100%;
+        font-size: 16px;
+        padding: 14px;
+      }
+
+      textarea {
+        font-size: 16px;
+      }
+
     }
   </style>
 </head>
