@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>発注一覧</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+      padding: 16px;
+    }
+    h1 {
+      font-size: 28px;
+      margin-bottom: 16px;
+    }
+    .storeBtn {
+      font-size: 20px;
+      padding: 12px 20px;
+      margin-right: 8px;
+      margin-bottom: 8px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 12px;
+    }
+    th, td {
+      border-bottom: 1px solid #ccc;
+      padding: 14px 8px;
+      font-size: 22px;
+    }
+    th {
+      text-align: left;
+      font-weight: bold;
+    }
+    td:last-child {
+      text-align: right;
+      font-weight: bold;
+    }
+    summary {
+      font-size: 22px;
+      padding: 8px 0;
+    }
+    /* 印刷専用スタイル */
+@media print {
+  @page {
+    size: B5 portrait;
+    margin: 8mm;
+  }
+
+  body {
+    padding: 0;
+    margin: 0;
+  }
+
+  /* 画面操作系は印刷しない */
+  .storeBtn,
+  details > summary {
+    display: none;
+  }
+
+  h1 {
+    font-size: 18px;
+    margin: 0 0 4px 0;
+  }
+
+  #currentStoreLabel {
+    font-size: 14px;
+    margin-bottom: 6px;
+    padding: 0;
+  }
+
+  table {
+    margin-top: 4px;
+    width: 100%;
+  }
+
+  th, td {
+    font-size: 16px;
+    padding: 4px 3px;
+    line-height: 1.2;
+  }
+
+  th {
+    border-bottom: 2px solid #000;
+  }
+
+  td:last-child {
+    text-align: right;
+  }
+
+  /* 備考は下部にまとめて表示 */
+  #todayNote {
+    font-size: 14px;
+    margin-top: 8px;
+    padding-top: 6px;
+    border-top: 2px solid #000;
+  }
+
+  /* 折りたたみは強制的に開く */
+  details {
+    open: true;
+  }
+
+  /* ページ分断を防ぐ */
+  table, tr {
+    page-break-inside: avoid;
+  }
+}
+  </style>
+</head>
+
+<body>
+  <h1 id="pageTitle">発注一覧</h1>
+  <button id="logoutBtn" style="
+    position:fixed;
+    top:12px;
+    right:16px;
+    font-size:16px;
+    padding:8px 14px;
+    z-index:999;
+  ">
+    ログアウト
+  </button>
+  <div id="currentStoreLabel" style="
+  font-size:20px;
+  font-weight:bold;
+  margin-bottom:12px;
+  padding:8px 12px;
+">
+  表示中店舗：仙石山
+</div>
+
+  <!-- 店舗切り替え -->
+  <div style="margin-bottom:16px;">
+    <label>店舗切り替え：</label>
+    <button class="storeBtn" data-store="store_a">仙石山</button>
+    <button class="storeBtn" data-store="store_b">麹町</button>
+    <button class="storeBtn" data-store="store_c">西麻布
+    </button>
+  </div>
+
+  <!-- 印刷ボタン -->
+  <div style="margin-bottom:16px;">
+    <button
+      style="font-size:20px; padding:12px 20px; margin-right:8px;"
+      onclick="printCentral('store_a')"
+    >
+      仙石山 印刷
+    </button>
+    <button
+      style="font-size:20px; padding:12px 20px; margin-right:8px;"
+      onclick="printCentral('store_b')"
+    >
+      麹町 印刷
+    </button>
+    <button
+      style="font-size:20px; padding:12px 20px;"
+      onclick="printCentral('store_c')"
+    >
+      西麻布 印刷
+    </button>
+  </div>
+
+
+
+  <!-- 折りたたみメニュー -->
+  <details open>
+    <summary style="font-weight:bold; cursor:pointer;">今日の発注一覧</summary>
+
+    <table>
+      <thead>
+        <tr>
+          <th>品目</th>
+          <th>合計数量</th>
+        </tr>
+      </thead>
+      <tbody id="todayTable"></tbody>
+    </table>
+    <!-- 備考表示 -->
+    <div id="todayNote" style="
+      margin-top:16px;
+      padding:12px;
+      font-size:20px;
+      border-top:2px solid #ccc;
+      white-space:pre-wrap;
+    ">
+      備考：なし
+    </div>
+  </details>
+
+<script type="module">
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const SUPABASE_URL = "https://ididxhgszvdvfyfzwfgm.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlkaWR4aGdzenZkdmZ5Znp3ZmdtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY3Mzc5MzgsImV4cCI6MjA4MjMxMzkzOH0.ZVOS2nxT8KbCB7U5xL0DKy9DGj3KrjJU7AJkR0_b33g";
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+/* ===============================
+   認証チェック（必須）
+================================ */
+const { data: { session } } = await supabase.auth.getSession();
+
+if (!session?.user) {
+  location.replace("./login.html");
+  throw new Error("not authenticated");
+}
+
+const userId = session.user.id;
+
+/* ===============================
+   store_id ベース判定
+=============================== */
+const { data: userRow, error: userError } = await supabase
+  .from("users")
+  .select("store_id")
+  .eq("id", userId)
+  .single();
+
+if (userError || !userRow || !userRow.store_id) {
+  location.replace("./login.html");
+  throw new Error("store_id not found");
+}
+
+// ログインユーザーの store_id を保持
+const userStoreId = userRow.store_id;
+
+/* ===============================
+   ログアウト・セッション切れ検知
+================================ */
+const logoutBtn = document.getElementById("logoutBtn");
+
+if (logoutBtn) {
+  logoutBtn.addEventListener("click", async () => {
+    await supabase.auth.signOut();
+    location.replace("./login.html");
+  });
+}
+
+let currentStore = "store_a";
+const STORE_NAMES = {
+  store_a: "仙石山",
+  store_b: "麹町",
+  store_c: "西麻布"
+};
+
+const todayTable = document.getElementById("todayTable");
+
+async function loadTodayOrders() {
+  const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+  const dateLabel = new Date(today).toLocaleDateString("ja-JP");
+
+  document.getElementById("pageTitle").textContent = `発注一覧（${dateLabel}）`;
+  document.getElementById("currentStoreLabel").textContent =
+    `表示中店舗：${STORE_NAMES[currentStore] ?? currentStore}`;
+
+  todayTable.innerHTML = "";
+
+  let ALLOWED_CATEGORIES = [];
+
+  if (userStoreId === "central_kitchen") {
+    // セントラルキッチン用カテゴリー
+    ALLOWED_CATEGORIES = ["a", "b"];
+  } else if (userStoreId === "storage_shed") {
+    // 倉庫用カテゴリー
+    ALLOWED_CATEGORIES = ["m"];
+  }
+
+  console.log("読み込み開始", {
+    store: currentStore,
+    delivery_date: today
+  });
+
+  // ① まず orders を取得
+  const { data: ordersData, error: ordersError } = await supabase
+    .from("orders")
+    .select("id, note")
+    .eq("store_id", currentStore)
+    .eq("delivery_date", today);
+
+  console.log("orders取得", ordersData, ordersError);
+
+  if (ordersError) {
+    alert("orders 読み込み失敗");
+    console.error(ordersError);
+    return;
+  }
+
+  if (!ordersData || ordersData.length === 0) {
+    todayTable.innerHTML = `<tr><td colspan="2">データがありません</td></tr>`;
+    document.getElementById("todayNote").textContent = "備考：なし";
+    return;
+  }
+
+  const orderIds = ordersData.map(o => o.id);
+
+  // 備考は最後のものを採用
+  let latestNote = "";
+  ordersData.forEach(o => {
+    if (o.note && o.note.trim() !== "") {
+      latestNote = o.note;
+    }
+  });
+
+  // ② order_items を取得
+  const { data: itemsData, error: itemsError } = await supabase
+    .from("order_items")
+    .select("order_id, item_name, quantity, category")
+    .in("order_id", orderIds);
+
+  console.log("order_items取得", itemsData, itemsError);
+
+  if (itemsError) {
+    alert("order_items 読み込み失敗");
+    console.error(itemsError);
+    return;
+  }
+
+  const categorizedTotals = {};
+
+  itemsData.forEach(itemRow => {
+    if (!ALLOWED_CATEGORIES.includes(itemRow.category)) return;
+
+    const category = itemRow.category;
+    const item = itemRow.item_name ?? "未分類";
+    const qty = Number(itemRow.quantity) || 0;
+
+    if (!categorizedTotals[category]) {
+      categorizedTotals[category] = {};
+    }
+
+    categorizedTotals[category][item] =
+      (categorizedTotals[category][item] || 0) + qty;
+  });
+
+  Object.values(categorizedTotals).forEach(items => {
+    Object.entries(items).forEach(([item, qty]) => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td>${item}</td><td>${qty}</td>`;
+      todayTable.appendChild(tr);
+    });
+  });
+
+  document.getElementById("todayNote").textContent =
+    latestNote ? `備考：${latestNote}` : "備考：なし";
+}
+
+// 店舗切り替え
+document.querySelectorAll(".storeBtn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    currentStore = btn.dataset.store;
+    loadTodayOrders();
+  });
+});
+
+function printCentral(storeId) {
+  const map = {
+    store_a: "print_central_store_a.html",
+    store_b: "print_central_store_b.html",
+    store_c: "print_central_store_c.html"
+  };
+
+  const url = map[storeId];
+  if (!url) {
+    alert("印刷ページが見つかりません");
+    return;
+  }
+
+  const w = window.open(url, "_blank");
+  if (!w) {
+    alert("ポップアップがブロックされています");
+    return;
+  }
+
+  w.onload = () => {
+    w.print();
+  };
+}
+
+// 初期表示
+loadTodayOrders();
+
+/* ===============================
+   朝6時 印刷確認ダイアログ
+================================ */
+
+// 今日すでに確認したかを localStorage で管理
+const todayKey = new Date().toISOString().slice(0, 10);
+const PRINT_CONFIRM_KEY = `print_confirmed_${todayKey}`;
+
+async function checkMorningPrintPrompt() {
+  const now = new Date();
+  const hour = now.getHours();
+
+  // 朝6時〜6時59分の間だけ表示
+  if (hour !== 6) return;
+
+  // 今日すでに確認済みなら何もしない
+  if (localStorage.getItem(PRINT_CONFIRM_KEY)) return;
+
+  const ok = confirm("朝6時です。\n本日の発注をプリントアウトしますか？");
+
+  // 今日確認したことを記録（YES/NO どちらでも）
+  localStorage.setItem(PRINT_CONFIRM_KEY, "done");
+
+  if (ok) {
+    const stores = ["store_a", "store_b", "store_c"];
+    const today = new Date().toISOString().slice(0, 10);
+
+    for (const storeId of stores) {
+      const { data, error } = await supabase
+        .from("orders")
+        .select("id")
+        .eq("store_id", storeId)
+        .eq("order_date", today)
+        .limit(1);
+
+      if (error) {
+        console.error("確認失敗", storeId, error);
+        continue;
+      }
+
+      // 注文が1件でもあれば印刷
+      if (data && data.length > 0) {
+        printCentral(storeId);
+      }
+    }
+  }
+}
+
+// 30秒ごとにチェック
+setInterval(checkMorningPrintPrompt, 30000);
+
+// 初回表示時にも一度チェック
+checkMorningPrintPrompt();
+</script>
+</body></html>

@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>集計・納品個数管理</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<style>
+body {
+  font-family: Arial, sans-serif;
+  margin: 20px;
+  background: #f8f9fa;
+}
+
+h1 {
+  margin-bottom: 20px;
+}
+
+.section {
+  background: #ffffff;
+  padding: 16px;
+  margin-bottom: 20px;
+  border-radius: 6px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.08);
+}
+
+label {
+  display: block;
+  margin-bottom: 6px;
+  font-weight: bold;
+}
+
+select, input[type="number"], input[type="text"] {
+  padding: 8px;
+  font-size: 16px;
+  width: 100%;
+  margin-bottom: 12px;
+}
+
+.actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+button {
+  padding: 10px 16px;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.primary {
+  background: #007bff;
+  color: white;
+  border: none;
+}
+
+.secondary {
+  background: #6c757d;
+  color: white;
+  border: none;
+}
+</style>
+</head>
+
+<body>
+
+<h1>集計・納品個数管理</h1>
+
+<div class="section">
+  <div style="display:flex; gap:24px; align-items:flex-end; flex-wrap:wrap;">
+    <div style="flex:1; min-width:200px;">
+      <label>店舗</label>
+      <select id="storeSelect">
+        <option value="">選択してください</option>
+        <option value="store_a">仙石山</option>
+        <option value="store_b">麹町</option>
+        <option value="store_c">西麻布</option>
+      </select>
+    </div>
+
+    <div style="flex:2; min-width:300px;">
+      <label>納品日で検索</label>
+      <div style="display:flex; gap:8px;">
+        <select id="yearSelect"></select>
+        <select id="monthSelect"></select>
+        <select id="daySelect"></select>
+      </div>
+    </div>
+  </div>
+  <label>備考</label>
+  <textarea id="noteInput" rows="3" style="width:100%; padding:8px; font-size:16px; margin-bottom:12px;"></textarea>
+</div>
+
+<div class="section">
+  <h2>受注一覧</h2>
+  <table id="ordersTable" border="1" width="100%" cellspacing="0" cellpadding="6">
+    <thead>
+      <tr>
+        <th>納品日</th>
+        <th>商品名</th>
+        <th>数量</th>
+        <th>増減</th>
+      </tr>
+    </thead>
+    <tbody id="ordersBody">
+      <tr><td colspan="4" style="text-align:center; padding:20px;">店舗を選択してください</td></tr>
+    </tbody>
+  </table>
+  <div style="text-align:right; margin-top:15px;">
+    <button id="submitAll" class="primary">送信</button>
+  </div>
+</div>
+
+<div class="actions">
+  <button class="secondary" onclick="location.href='master.html'">
+    Masterに戻る
+  </button>
+</div>
+
+<script type="module">
+
+import { createClient } from "https://esm.sh/@supabase/supabase-js"
+
+// ===== Supabase 接続情報 =====
+const SUPABASE_URL = "https://ididxhgszvdvfyfzwfgm.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlkaWR4aGdzenZkdmZ5Znp3ZmdtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY3Mzc5MzgsImV4cCI6MjA4MjMxMzkzOH0.ZVOS2nxT8KbCB7U5xL0DKy9DGj3KrjJU7AJkR0_b33g";
+
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  /* ===============================
+     認証・権限チェック（Master専用）
+  ================================= */
+
+  // 初期セッションを正しく取得（Supabase v2 安定版）
+  const {
+    data: { session }
+  } = await supabase.auth.getSession();
+
+  if (!session || !session.user) {
+    // 未ログインは強制的にログイン画面へ
+    location.replace("/login.html");
+    throw new Error("not authenticated");
+  }
+
+  const user = session.user;
+
+  // public.users テーブルから role を取得
+  const { data: userRow, error: userError } = await supabase
+    .from("users")
+    .select("role")
+    .eq("id", user.id)
+    .single();
+
+  if (userError || !userRow) {
+    console.error("ユーザー情報取得失敗", userError);
+    location.replace("/login.html");
+    throw new Error("user fetch failed");
+  }
+
+  // 本部権限のみ許可（wh）
+  if (userRow.role !== "wh") {
+    location.replace("/login.html");
+    throw new Error("not authorized");
+  }
+
+
+  // セッション切れ・ログアウト検知
+  supabase.auth.onAuthStateChange((event) => {
+    if (event === "SIGNED_OUT") {
+      location.replace("/login.html");
+    }
+  });
+
+  document.getElementById("storeSelect").addEventListener("change", async (e) => {
+    const storeId = e.target.value;
+    if (!storeId) return;
+
+    // master権限ユーザー取得
+    const { data: masterUser } = await supabase
+      .from("users")
+      .select("store_id")
+      .not("store_id", "is", null)
+      .single();
+
+    if (!masterUser) {
+      alert("master権限が見つかりません");
+      return;
+    }
+
+    // orders取得
+    let query = supabase
+      .from("orders")
+      .select(`
+        id,
+        delivery_date,
+        store_id,
+        order_items (
+          item_id,
+          item_name,
+          category,
+          quantity
+        )
+      `)
+      .eq("store_id", storeId);
+
+    const y = yearSelect.value;
+    const m = monthSelect.value;
+    const d = daySelect.value;
+
+    if (y && m && d) {
+      const selectedDate = `${y}-${m}-${d}`;
+      query = query.eq("delivery_date", selectedDate);
+    }
+
+    const { data: orders, error: orderError } = await query;
+
+    if (orderError) {
+      alert("orders取得失敗");
+      return;
+    }
+
+    const tbody = document.getElementById("ordersBody");
+    tbody.innerHTML = "";
+
+    if (!orders || orders.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; padding:20px;">データがありません</td></tr>`;
+      return;
+    }
+
+    // 日付ごとにグループ化
+    const grouped = {};
+
+    orders.forEach(order => {
+      const date = order.delivery_date;
+      if (!grouped[date]) {
+        grouped[date] = [];
+      }
+      grouped[date].push(...(order.order_items || []));
+    });
+
+    Object.keys(grouped).sort().forEach(date => {
+      // 日付ヘッダー行
+      const headerRow = document.createElement("tr");
+      headerRow.innerHTML = `
+        <td colspan="4" style="background:#343a40; color:white; font-weight:bold; padding:10px;">
+          ${date}
+        </td>
+      `;
+      tbody.appendChild(headerRow);
+
+      // 🔹 商品ごとに合計を集計
+      const summary = {};
+
+      grouped[date].forEach(item => {
+        if (!summary[item.item_id]) {
+          summary[item.item_id] = {
+            item_name: item.item_name,
+            category: item.category,
+            total: 0
+          };
+        }
+        summary[item.item_id].total += item.quantity;
+      });
+
+      // 🔹 合計のみ表示
+      Object.keys(summary).forEach(itemId => {
+        const item = summary[itemId];
+
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td></td>
+          <td>${item.item_name}</td>
+          <td class="current-qty">${item.total}</td>
+          <td style="text-align:center;">
+            <button class="minus-btn" 
+              data-id="${itemId}"
+              data-name="${item.item_name}"
+              data-category="${item.category}"
+              data-date="${date}">−</button>
+            <span class="adjust-display" 
+              data-id="${itemId}"
+              data-date="${date}" 
+              style="font-size:18px; margin:0 10px;">0</span>
+            <button class="plus-btn" 
+              data-id="${itemId}"
+              data-name="${item.item_name}"
+              data-category="${item.category}"
+              data-date="${date}">＋</button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    });
+  });
+
+  const yearSelect = document.getElementById("yearSelect");
+  const monthSelect = document.getElementById("monthSelect");
+  const daySelect = document.getElementById("daySelect");
+
+  const currentYear = new Date().getFullYear();
+
+  for (let y = currentYear - 2; y <= currentYear + 1; y++) {
+    const opt = document.createElement("option");
+    opt.value = y;
+    opt.textContent = y + "年";
+    yearSelect.appendChild(opt);
+  }
+
+  for (let m = 1; m <= 12; m++) {
+    const opt = document.createElement("option");
+    opt.value = String(m).padStart(2, "0");
+    opt.textContent = m + "月";
+    monthSelect.appendChild(opt);
+  }
+
+  function updateDayOptions() {
+    const year = Number(yearSelect.value);
+    const month = Number(monthSelect.value);
+
+    const lastDay = new Date(year, month, 0).getDate();
+    const currentSelected = daySelect.value;
+
+    daySelect.innerHTML = "";
+
+    for (let d = 1; d <= lastDay; d++) {
+      const opt = document.createElement("option");
+      opt.value = String(d).padStart(2, "0");
+      opt.textContent = d + "日";
+      daySelect.appendChild(opt);
+    }
+
+    // 以前の選択日が有効なら維持、無効なら月末へ
+    if (currentSelected && Number(currentSelected) <= lastDay) {
+      daySelect.value = currentSelected;
+    } else {
+      daySelect.value = String(lastDay).padStart(2, "0");
+    }
+  }
+
+  const today = new Date();
+  yearSelect.value = today.getFullYear();
+  monthSelect.value = String(today.getMonth()+1).padStart(2,"0");
+  daySelect.value = String(today.getDate()).padStart(2,"0");
+  updateDayOptions();
+
+  yearSelect.addEventListener("change", () => {
+    updateDayOptions();
+    document.getElementById("storeSelect").dispatchEvent(new Event("change"));
+  });
+
+  monthSelect.addEventListener("change", () => {
+    updateDayOptions();
+    document.getElementById("storeSelect").dispatchEvent(new Event("change"));
+  });
+
+  daySelect.addEventListener("change", () => {
+    document.getElementById("storeSelect").dispatchEvent(new Event("change"));
+  });
+
+  const adjustments = {};
+
+  document.getElementById("ordersBody").addEventListener("click", (e) => {
+    const btn = e.target;
+    if (!btn.classList.contains("plus-btn") && !btn.classList.contains("minus-btn")) return;
+
+    const itemId = btn.dataset.id;
+    const itemName = btn.dataset.name;
+    const category = btn.dataset.category;
+    const date = btn.dataset.date;
+    const key = `${date}__${itemId}`;
+
+    if (!adjustments[key]) {
+      adjustments[key] = {
+        change: 0,
+        item_name: itemName,
+        category: category
+      };
+    }
+
+    if (btn.classList.contains("plus-btn")) {
+      adjustments[key].change += 1;
+    } else {
+      adjustments[key].change -= 1;
+    }
+
+    const display = document.querySelector(`.adjust-display[data-id="${itemId}"][data-date="${date}"]`);
+    display.textContent = adjustments[key].change;
+  });
+
+  document.getElementById("submitAll").addEventListener("click", async () => {
+    const storeId = document.getElementById("storeSelect").value;
+    if (!storeId) {
+      alert("店舗を選択してください");
+      return;
+    }
+
+    for (const key in adjustments) {
+      const [deliveryDate, itemId] = key.split("__");
+      const { change, item_name, category } = adjustments[key];
+      if (!change) continue;
+
+      // 🔹 毎回新しい orders を作成（履歴保存型）
+      const { data: newOrder, error: insertOrderError } = await supabase
+        .from("orders")
+        .insert({
+          store_id: storeId,
+          store_name: document.getElementById("storeSelect").selectedOptions[0].text,
+          delivery_date: deliveryDate,
+          note: document.getElementById("noteInput").value || "",
+          user_id: session.user.id
+        })
+        .select()
+        .single();
+
+      if (insertOrderError) {
+        console.error("orders insert error:", insertOrderError);
+        alert("orders insert失敗");
+        continue;
+      }
+
+      // 🔹 マイナスも含めてそのまま保存
+      const { error: insertItemError } = await supabase
+        .from("order_items")
+        .insert({
+          order_id: newOrder.id,
+          item_id: itemId,
+          item_name: item_name,
+          category: category,
+          quantity: change
+        });
+
+      if (insertItemError) {
+        console.error("order_items insert error:", insertItemError);
+        alert("order_items insert失敗");
+      }
+    }
+
+    alert("一括更新が完了しました");
+    document.getElementById("storeSelect").dispatchEvent(new Event("change"));
+  });
+
+</script>
+
+</body>
+</html>

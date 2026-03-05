@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>発注履歴</title>
+  <style>
+    body { font-family: sans-serif; margin: 12px; }
+    h1 { font-size: 20px; margin-bottom: 12px; }
+    button { font-size: 18px; padding: 12px 16px; border-radius: 8px; }
+    table { border-collapse: collapse; width: 100%; margin-top: 6px; }
+    th, td { padding: 6px; border: 1px solid #ccc; }
+    select {
+      font-size: 20px;
+      padding: 14px 18px;
+      border-radius: 12px;
+      min-width: 100px;
+    }
+    #dateSelectors {
+      margin-bottom: 16px;
+    }
+  </style>
+</head>
+<body>
+
+<h1 id="pageTitle">発注履歴</h1>
+<div id="dateSelectors" style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+  <select id="yearSelect"></select>
+  <select id="monthSelect"></select>
+  <select id="daySelect"></select>
+  <button id="searchBtn">検索</button>
+</div>
+<button id="backToOrder">発注画面に戻る</button>
+<div id="historyContainer" style="margin-top:12px;"></div>
+
+<script type="module">
+import { supabase, getUser, getSession, onAuthStateChange } from './supabase-client.js';
+
+const { session } = (await getSession()) || {};
+if (!session) {
+  location.replace("./login.html");
+  throw new Error("not authenticated");
+}
+
+// IMPORTANT: ensure JWT is attached to requests
+const user = await getUser();
+console.log("LOGIN USER:", user);
+
+onAuthStateChange((event) => {
+  if (event === "SIGNED_OUT" || event === "TOKEN_REFRESH_FAILED") {
+    location.replace("./login.html");
+  }
+});
+
+// public.users テーブルから store_id と role を取得
+const { data: userRow, error: userError } = await supabase
+  .from("users")
+  .select("store_id, role")
+  .eq("id", user.id)
+  .single();
+
+if (userError || !userRow) {
+  console.error("ユーザー情報取得失敗", userError);
+  location.replace("./login.html");
+  throw new Error("user fetch failed");
+}
+
+const STORE_ID = userRow.store_id;
+
+// 倉庫権限は履歴画面を使用しない（masterへ）
+if (userRow.role === "wh") {
+  location.replace("./master.html");
+  throw new Error("warehouse redirected");
+}
+
+if (!STORE_ID) {
+  location.replace("./login.html");
+  throw new Error("no store id");
+}
+
+const container = document.getElementById("historyContainer");
+
+document.getElementById("backToOrder").onclick = () => {
+  location.href = "./order.html";
+};
+
+async function loadHistory() {
+  console.log("STORE_ID from localStorage:", STORE_ID);
+
+  const { data, error } = await supabase
+    .from("orders")
+    .select(`
+      id,
+      created_at,
+      delivery_date,
+      note,
+      order_items (
+        id,
+        item_name,
+        category,
+        quantity
+      )
+    `)
+    .eq("store_id", STORE_ID)
+    .order("created_at", { ascending: false });
+
+  console.log("Supabase raw response:", { data, error });
+
+  if (!data || data.length === 0) {
+    container.innerHTML = "この店舗の発注履歴はまだありません（DBから0件）";
+  }
+
+  const yearSelect = document.getElementById("yearSelect");
+  const monthSelect = document.getElementById("monthSelect");
+  const daySelect = document.getElementById("daySelect");
+
+  yearSelect.innerHTML = `<option value="">年</option>`;
+  monthSelect.innerHTML = `<option value="">月</option>`;
+  daySelect.innerHTML = `<option value="">日</option>`;
+
+  // 年リスト作成（データから抽出）
+  const years = data && data.length > 0
+    ? [...new Set(data.map(row => new Date(row.created_at).getFullYear()))]
+    : [new Date().getFullYear()];
+  years.sort((a, b) => b - a);
+
+  const currentYear = new Date().getFullYear();
+  years.forEach(y => {
+    const option = document.createElement("option");
+    option.value = y;
+    option.textContent = `${y}年`;
+    if (y === currentYear) option.selected = true;
+    yearSelect.appendChild(option);
+  });
+
+  const currentMonth = new Date().getMonth() + 1;
+  const today = new Date();
+  const currentDay = today.getDate();
+  // 月リスト
+  for (let m = 1; m <= 12; m++) {
+    const option = document.createElement("option");
+    option.value = m;
+    option.textContent = `${m}月`;
+    if (m === currentMonth) option.selected = true;
+    monthSelect.appendChild(option);
+  }
+
+  function updateDayOptions() {
+    const y = Number(yearSelect.value);
+    const m = Number(monthSelect.value);
+
+    const lastDay = new Date(y, m, 0).getDate();
+    const currentSelected = Number(daySelect.value);
+
+    daySelect.innerHTML = `<option value="">日</option>`;
+
+    for (let d = 1; d <= lastDay; d++) {
+      const option = document.createElement("option");
+      option.value = d;
+      option.textContent = `${d}日`;
+      daySelect.appendChild(option);
+    }
+
+    if (currentSelected && currentSelected <= lastDay) {
+      daySelect.value = currentSelected;
+    } else if (!currentSelected) {
+      daySelect.value = "";
+    } else {
+      daySelect.value = lastDay;
+    }
+  }
+
+  yearSelect.addEventListener("change", updateDayOptions);
+  monthSelect.addEventListener("change", updateDayOptions);
+
+  updateDayOptions();
+
+  // 初期表示は本日
+  if (yearSelect.value == today.getFullYear() &&
+      monthSelect.value == currentMonth) {
+    daySelect.value = currentDay;
+  }
+
+  const searchBtn = document.getElementById("searchBtn");
+
+  const renderOrders = () => {
+    const y = Number(yearSelect.value);
+    const m = Number(monthSelect.value);
+    const d = Number(daySelect.value);
+
+    container.innerHTML = "";
+
+    const filtered = data.filter(order => {
+      const date = new Date(order.created_at);
+      return (
+        date.getFullYear() === y &&
+        date.getMonth() + 1 === m &&
+        date.getDate() === d
+      );
+    });
+
+    if (filtered.length === 0) {
+      container.innerHTML = "この日の発注履歴はありません";
+      return;
+    }
+
+    filtered.forEach(order => {
+
+      const orderDate = new Date(order.created_at).toLocaleDateString();
+      const deliveryDate = order.delivery_date
+        ? new Date(order.delivery_date).toLocaleDateString()
+        : "未設定";
+
+      const wrapper = document.createElement("div");
+      wrapper.style.marginBottom = "20px";
+      wrapper.style.padding = "12px";
+      wrapper.style.border = "1px solid #ccc";
+      wrapper.style.borderRadius = "10px";
+
+      wrapper.innerHTML = `
+        <div style="font-weight:600; margin-bottom:6px;">
+          発注日: ${orderDate}
+        </div>
+        <div style="margin-bottom:6px;">
+          配送希望日: ${deliveryDate}
+        </div>
+        <div style="margin-bottom:8px;">
+          備考: ${order.note ?? ""}
+        </div>
+      `;
+
+      const table = document.createElement("table");
+      table.innerHTML = `
+        <thead>
+          <tr>
+            <th style="width:50%">品目名</th>
+            <th style="width:25%">カテゴリ</th>
+            <th style="width:25%; text-align:right">数量</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      `;
+
+      const tbody = table.querySelector("tbody");
+
+      (order.order_items || []).forEach(item => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${item.item_name ?? ""}</td>
+          <td>${item.category ?? ""}</td>
+          <td style="text-align:right; font-weight:600">${item.quantity ?? ""}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      wrapper.appendChild(table);
+      container.appendChild(wrapper);
+    });
+  };
+
+  searchBtn.onclick = renderOrders;
+
+  // 🔥 ページ読み込み時に今日の履歴を自動表示
+  renderOrders();
+}
+
+loadHistory();
+</script>
+</body>
+</html>

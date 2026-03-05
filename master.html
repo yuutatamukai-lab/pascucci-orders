@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <title>管理画面（発注集計）</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <style>
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont;
+      margin: 16px;
+    }
+
+    h1 {
+      font-size: 22px;
+      margin-bottom: 16px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    th, td {
+      border: 1px solid #ccc;
+      padding: 12px;
+      font-size: 16px;
+      text-align: left;
+    }
+
+    th {
+      background: #f0f0f0;
+    }
+
+    button, select {
+      font-size: 18px;
+      padding: 8px 12px;
+    }
+
+    #dateButton {
+      font-size: 18px;
+      padding: 8px 16px;
+    }
+
+    dialog {
+      border: 1px solid #ccc;
+      padding: 16px;
+      font-size: 18px;
+    }
+  </style>
+</head>
+<body>
+
+<div style="display:flex; align-items:baseline; gap:16px; flex-wrap:wrap;">
+  <h1 style="margin:0;">発注管理画面（品目別合計）</h1>
+  <div id="currentView" style="font-size:16px; color:#555;"></div>
+</div>
+<div style="margin-bottom:16px; display:flex; gap:16px; align-items:center; flex-wrap:wrap;">
+
+  <select id="storeSelect">
+    <option value="">全店舗</option>
+    <option value="store_a">仙石山</option>
+    <option value="store_b">麹町</option>
+    <option value="store_c">西麻布</option>
+  </select>
+
+  <select id="periodSelect">
+    <option value="day">日単位</option>
+    <option value="month" selected>月単位</option>
+  </select>
+
+</div>
+
+<div style="margin-bottom:16px; display:flex; gap:8px; align-items:center;">
+  <select id="yearSelect"></select>
+  <select id="monthSelect"></select>
+  <select id="daySelect"></select>
+</div>
+
+<table>
+  <thead>
+    <tr>
+      <th>品目</th>
+      <th>合計数</th>
+    </tr>
+  </thead>
+  <tbody id="summaryBody"></tbody>
+</table>
+<div style="margin-top:16px; display:flex; gap:12px;">
+  <button id="minusBtn">マイナス処理</button>
+  <button id="logout">ログアウト</button>
+</div>
+
+<script type="module">
+  import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+  console.log("admin.js start");
+
+  const today = new Date().toISOString().slice(0, 10);
+
+  const periodSelect = document.getElementById("periodSelect");
+  const yearSelect = document.getElementById("yearSelect");
+  const monthSelect = document.getElementById("monthSelect");
+  const daySelect = document.getElementById("daySelect");
+
+  let selectedDate = today;
+
+  function updateDateControl() {
+    if (periodSelect.value === "day") {
+      daySelect.style.display = "inline-block";
+    } else {
+      daySelect.style.display = "none";
+    }
+  }
+
+  periodSelect.addEventListener("change", updateDateControl);
+  periodSelect.addEventListener("change", loadSummary);
+  updateDateControl();
+
+  const currentYear = new Date().getFullYear();
+  for (let y = currentYear - 1; y <= currentYear + 1; y++) {
+    const opt = document.createElement("option");
+    opt.value = y;
+    opt.textContent = y + "年";
+    yearSelect.appendChild(opt);
+  }
+
+  for (let m = 1; m <= 12; m++) {
+    const opt = document.createElement("option");
+    opt.value = m.toString().padStart(2, "0");
+    opt.textContent = m + "月";
+    monthSelect.appendChild(opt);
+  }
+
+
+  function updateDayOptions() {
+    const year = Number(yearSelect.value);
+    const month = Number(monthSelect.value);
+
+    // その月の最終日を取得（0日は前月末になる性質を利用）
+    const lastDay = new Date(year, month, 0).getDate();
+
+    const currentValue = daySelect.value;
+    daySelect.innerHTML = "";
+
+    for (let d = 1; d <= lastDay; d++) {
+      const opt = document.createElement("option");
+      opt.value = d.toString().padStart(2, "0");
+      opt.textContent = d + "日";
+      daySelect.appendChild(opt);
+    }
+
+    // 以前の日付が有効なら復元
+    if (currentValue && Number(currentValue) <= lastDay) {
+      daySelect.value = currentValue;
+    }
+  }
+
+  function setSelectFromDate(dateStr) {
+    const [y, m, d] = dateStr.split("-");
+    yearSelect.value = y;
+    monthSelect.value = m;
+    daySelect.value = d;
+  }
+
+  if (selectedDate) {
+    setSelectFromDate(selectedDate);
+  }
+  updateDayOptions();
+
+yearSelect.addEventListener("change", () => {
+  updateDayOptions();
+
+  if (periodSelect.value === "day") {
+    selectedDate = `${yearSelect.value}-${monthSelect.value}-${daySelect.value}`;
+  } else {
+    selectedDate = `${yearSelect.value}-${monthSelect.value}-01`;
+  }
+
+  loadSummary();
+});
+
+monthSelect.addEventListener("change", () => {
+  updateDayOptions();
+
+  if (periodSelect.value === "day") {
+    selectedDate = `${yearSelect.value}-${monthSelect.value}-${daySelect.value}`;
+  } else {
+    selectedDate = `${yearSelect.value}-${monthSelect.value}-01`;
+  }
+
+  loadSummary();
+});
+
+  daySelect.addEventListener("change", () => {
+    selectedDate = `${yearSelect.value}-${monthSelect.value}-${daySelect.value}`;
+    loadSummary();
+  });
+
+  const SUPABASE_URL = "https://ididxhgszvdvfyfzwfgm.supabase.co";
+  const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlkaWR4aGdzenZkdmZ5Znp3ZmdtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY3Mzc5MzgsImV4cCI6MjA4MjMxMzkzOH0.ZVOS2nxT8KbCB7U5xL0DKy9DGj3KrjJU7AJkR0_b33g";
+
+  const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  /* ===============================
+     認証・権限チェック（Master専用）
+  ================================= */
+
+  // 初期セッションを正しく取得（Supabase v2 安定版）
+  const {
+    data: { session }
+  } = await supabase.auth.getSession();
+
+  if (!session || !session.user) {
+    // 未ログインは強制的にログイン画面へ
+    location.replace("/login.html");
+    throw new Error("not authenticated");
+  }
+
+  const user = session.user;
+
+  // public.users テーブルから role, store_id を取得
+  const { data: userRow, error: userError } = await supabase
+    .from("users")
+    .select("role, store_id")
+    .eq("id", user.id)
+    .single();
+
+  if (userError || !userRow) {
+    console.error("ユーザー情報取得失敗", userError);
+    location.replace("/login.html");
+    throw new Error("user fetch failed");
+  }
+
+  // Master専用（role=wh かつ store_id=master）
+  if (userRow.role !== "wh" || userRow.store_id !== "master") {
+    location.replace("/login.html");
+    throw new Error("not authorized");
+  }
+
+
+  // セッション切れ・ログアウト検知
+  supabase.auth.onAuthStateChange((event) => {
+    if (event === "SIGNED_OUT") {
+      location.replace("/login.html");
+    }
+  });
+
+  const storeSelect = document.getElementById("storeSelect");
+  storeSelect.addEventListener("change", loadSummary);
+
+  async function loadSummary() {
+    console.log("loadSummary start");
+
+    const viewLabel = document.getElementById("currentView");
+
+    const dateValue = selectedDate;
+    const periodValue = document.getElementById("periodSelect").value;
+    const storeValue = document.getElementById("storeSelect").value;
+
+    let query = supabase
+      .from("orders")
+      .select(`
+        id,
+        delivery_date,
+        store_id,
+        order_items (
+          item_name,
+          quantity
+        )
+      `);
+
+    if (storeValue) {
+      query = query.eq("store_id", storeValue);
+    }
+
+    if (dateValue) {
+      if (periodValue === "day") {
+        query = query.eq("delivery_date", dateValue);
+      }
+
+      if (periodValue === "month") {
+        const year = yearSelect.value;
+        const month = monthSelect.value;
+        const startStr = `${year}-${month}-01`;
+        const endDate = new Date(year, Number(month), 0);
+        const endStr = endDate.toISOString().slice(0, 10);
+
+        query = query.gte("delivery_date", startStr)
+                     .lte("delivery_date", endStr);
+      }
+    }
+
+    let viewText = "表示中：";
+
+    if (storeValue) viewText += `店舗=${storeValue} `;
+
+    if (periodValue === "month") {
+      viewText += `${yearSelect.value}年${Number(monthSelect.value)}月`;
+    } else {
+      viewText += `${yearSelect.value}年${Number(monthSelect.value)}月${Number(daySelect.value)}日`;
+    }
+    viewLabel.textContent = viewText;
+
+    const { data, error } = await query;
+
+    console.log("data:", data);
+    console.log("error:", error);
+
+    if (error) {
+      alert("読み込み失敗");
+      return;
+    }
+
+    const tbody = document.getElementById("summaryBody");
+    tbody.innerHTML = "";
+
+    if (!data || data.length === 0) {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td colspan="2">データがありません</td>`;
+      tbody.appendChild(tr);
+      return;
+    }
+
+    const summary = {};
+
+    data.forEach(order => {
+      (order.order_items || []).forEach(item => {
+        const name = item.item_name;
+        const qty = Number(item.quantity || 0);
+
+        if (!summary[name]) {
+          summary[name] = 0;
+        }
+        summary[name] += qty;
+      });
+    });
+
+    Object.keys(summary).sort().forEach(item => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${item}</td>
+        <td>${summary[item]}</td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+
+  const minusBtn = document.getElementById("minusBtn");
+
+  if (minusBtn) {
+    minusBtn.addEventListener("click", () => {
+      // マイナス処理画面へ遷移
+      location.replace("./adjust.html");
+    });
+  }
+
+  setTimeout(() => {
+    loadSummary();
+  }, 0);
+
+  /* ===============================
+     ログアウト
+  ================================= */
+  const logoutBtn = document.getElementById("logout");
+
+  if (logoutBtn) {
+    logoutBtn.addEventListener("click", async () => {
+      await supabase.auth.signOut();
+      location.replace("./login.html");
+    });
+  }
+</script>
+
+</body>
+</html>

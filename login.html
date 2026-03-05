@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>PASCUCCI ログイン</title>
+
+  <style>
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-family: sans-serif;
+      background: #e0e0e0;
+      padding: 16px;
+      box-sizing: border-box;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 420px;
+      min-width: 280px;
+      text-align: center;
+      background: #fff;
+      padding: 48px 24px;
+      border-radius: 16px;
+      box-shadow: 0 6px 18px rgba(0,0,0,0.12);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .company {
+      font-size: 40px;
+      font-weight: bold;
+      margin-bottom: 12px;
+      color: #c40000;
+    }
+
+    .subtitle {
+      font-size: 20px;
+      color: #666;
+      margin-bottom: 24px;
+    }
+
+    input {
+      width: 100%;
+      font-size: 18px;
+      padding: 14px;
+      box-sizing: border-box;
+    }
+
+    button {
+      font-size: 18px;
+      padding: 14px;
+      cursor: pointer;
+    }
+
+    #msg {
+      min-height: 24px;
+      color: red;
+      font-size: 14px;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <div class="company">PASCUCCI</div>
+    <div class="subtitle">ログイン</div>
+
+    <input id="email" type="email" placeholder="メールアドレス" autocomplete="username">
+    <input id="password" type="password" placeholder="パスワード" autocomplete="current-password">
+
+    <button id="loginBtn">ログイン</button>
+    <div id="msg"></div>
+  </div>
+
+  <script type="module">
+    import { supabase } from "./supabase-client.js";
+
+    const emailInput = document.getElementById("email");
+    const passwordInput = document.getElementById("password");
+    const loginBtn = document.getElementById("loginBtn");
+    const msg = document.getElementById("msg");
+
+    async function checkSession() {
+      const { data: { session } } = await supabase.auth.getSession();
+
+      if (!session?.user) return;
+
+      const { data: userRow } = await supabase
+        .from("users")
+        .select("role, store_id")
+        .eq("id", session.user.id)
+        .single();
+
+      if (!userRow) return;
+
+      routeUser(userRow);
+    }
+
+    function routeUser(user) {
+      // master（集計・マイナス処理専用）
+      if (user.role === "wh" && user.store_id === "master") {
+        location.replace("./master.html");
+        return;
+      }
+
+      // wh（central_kitchen / storage_shed 共通画面）
+      if (user.role === "wh" && user.store_id !== "master") {
+        location.replace("./central_kitchen.html");
+        return;
+      }
+
+      // 店舗
+      if (user.store_id && user.role !== "wh") {
+        location.replace("./order.html");
+        return;
+      }
+
+      msg.textContent = "不明な権限です。管理者に連絡してください。";
+    }
+
+    async function handleLogin() {
+      const email = emailInput.value.trim().toLowerCase();
+      const password = passwordInput.value.trim();
+
+      msg.textContent = "";
+      loginBtn.disabled = true;
+      loginBtn.textContent = "ログイン中...";
+
+      try {
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+
+        if (error) {
+          msg.textContent = "ログインに失敗しました";
+          return;
+        }
+
+        const { data: userRow } = await supabase
+          .from("users")
+          .select("role, store_id")
+          .eq("id", data.user.id)
+          .single();
+
+        if (!userRow) {
+          msg.textContent = "権限情報が見つかりません。管理者に連絡してください。";
+          return;
+        }
+
+        routeUser(userRow);
+
+      } catch (err) {
+        msg.textContent = "通信エラーが発生しました";
+      } finally {
+        loginBtn.disabled = false;
+        loginBtn.textContent = "ログイン";
+      }
+    }
+
+    checkSession();
+    loginBtn.addEventListener("click", handleLogin);
+  </script>
+</body>
+</html>

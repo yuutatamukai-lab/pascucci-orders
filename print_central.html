@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>発注一覧（セントラル）</title>
+
+<style>
+@page {
+  size: B5 portrait;
+  margin: 8mm;
+}
+
+body {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  margin: 0;
+  padding: 0;
+}
+
+h1 {
+  font-size: 20px;
+  margin-bottom: 6px;
+}
+
+.store {
+  font-size: 16px;
+  font-weight: bold;
+  margin-bottom: 8px;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th, td {
+  border-bottom: 1px solid #000;
+  padding: 6px 4px;
+  font-size: 16px;
+}
+
+th {
+  text-align: left;
+}
+
+td:last-child {
+  text-align: right;
+  font-weight: bold;
+}
+
+.note {
+  margin-top: 10px;
+  padding-top: 6px;
+  border-top: 2px solid #000;
+  font-size: 14px;
+  white-space: pre-wrap;
+}
+</style>
+</head>
+
+<body>
+
+<h1>発注一覧</h1>
+<div class="store" id="storeLabel">セントラルキッチン</div>
+<div id="dateLabel"></div>
+
+<table>
+  <thead>
+    <tr>
+      <th>品目</th>
+      <th>数量</th>
+    </tr>
+  </thead>
+  <tbody id="printTable"></tbody>
+</table>
+
+<div class="note" id="printNote">備考：なし</div>
+
+<script type="module">
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const SUPABASE_URL = "https://ididxhgszvdvfyfzwfgm.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlkaWR4aGdzenZkdmZ5Znp3ZmdtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY3Mzc5MzgsImV4cCI6MjA4MjMxMzkzOH0.ZVOS2nxT8KbCB7U5xL0DKy9DGj3KrjJU7AJkR0_b33g";
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+
+/* ===============================
+   セキュリティチェック（whユーザーのみ）
+================================ */
+const { data: { session } } = await supabase.auth.getSession();
+
+if (!session?.user) {
+  location.replace("./login.html");
+  throw new Error("not logged in");
+}
+
+const userId = session.user.id;
+
+const { data: userRow } = await supabase
+  .from("users")
+  .select("role")
+  .eq("id", userId)
+  .single();
+
+if (!userRow || userRow.role !== "wh") {
+  location.replace("./login.html");
+  throw new Error("not authorized");
+}
+
+const params = new URLSearchParams(window.location.search);
+const STORE_ID = params.get("store");
+
+if (!STORE_ID) {
+  document.body.innerHTML = "store指定がありません";
+  throw new Error("store not specified");
+}
+
+// 店舗名を表示
+const storeLabel = document.getElementById("storeLabel");
+storeLabel.textContent = `セントラルキッチン｜${STORE_ID}`;
+
+async function loadPrintData() {
+  const today = new Date();
+  const orderDate = today.toISOString().slice(0, 10);
+
+  document.getElementById("dateLabel").textContent =
+    today.toLocaleDateString("ja-JP");
+
+  const { data, error } = await supabase
+    .from("orders")
+    .select("item, quantity, note")
+    .eq("store_id", STORE_ID)
+    .eq("order_date", orderDate);
+
+  if (error) {
+    document.body.innerHTML = "読み込み失敗";
+    console.error(error);
+    return;
+  }
+
+  const totals = {};
+  let latestNote = "";
+
+  data.forEach(r => {
+    totals[r.item] = (totals[r.item] || 0) + (r.quantity || 0);
+    if (r.note && r.note.trim()) latestNote = r.note;
+  });
+
+  const tbody = document.getElementById("printTable");
+  Object.entries(totals).forEach(([item, qty]) => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td>${item}</td><td>${qty}</td>`;
+    tbody.appendChild(tr);
+  });
+
+  document.getElementById("printNote").textContent =
+    latestNote ? `備考：${latestNote}` : "備考：なし";
+}
+
+loadPrintData();
+</script>
+
+</body>
+</html>
