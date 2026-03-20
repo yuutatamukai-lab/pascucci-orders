@@ -468,13 +468,15 @@ const monthSelect = document.getElementById("monthSelect");
 const daySelect = document.getElementById("daySelect");
 
 const today = new Date();
+const tomorrow = new Date(today);
+tomorrow.setDate(today.getDate() + 1);
 const currentYear = today.getFullYear();
 
 for (let y = currentYear - 2; y <= currentYear + 1; y++) {
   const option = document.createElement("option");
   option.value = y;
   option.textContent = y + "年";
-  if (y === currentYear) option.selected = true;
+  if (y === tomorrow.getFullYear()) option.selected = true;
   yearSelect.appendChild(option);
 }
 
@@ -482,7 +484,7 @@ for (let m = 1; m <= 12; m++) {
   const option = document.createElement("option");
   option.value = m;
   option.textContent = m + "月";
-  if (m === today.getMonth() + 1) option.selected = true;
+  if (m === tomorrow.getMonth() + 1) option.selected = true;
   monthSelect.appendChild(option);
 }
 
@@ -513,6 +515,7 @@ function updateDays() {
 yearSelect.onchange = updateDays;
 monthSelect.onchange = updateDays;
 updateDays();
+daySelect.value = tomorrow.getDate();
 
 document.getElementById("submit").onclick = async () => {
   // 現在表示中の数量を必ずstateへ保存（最後のカテゴリー対策）
