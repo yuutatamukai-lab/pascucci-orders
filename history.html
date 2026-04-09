@@ -7,7 +7,20 @@
   <style>
     body { font-family: sans-serif; margin: 10px; line-height: 1.4; }
     h1 { font-size: 22px; margin-bottom: 12px; }
-    button { font-size: 18px; padding: 14px 18px; border-radius: 10px; }
+    button {
+      font-size: 18px;
+      padding: 16px 18px;
+      border-radius: 12px;
+      min-height: 48px;
+    }
+    #modeSelectWrap {
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    #modeSelectWrap select {
+      min-width: 120px;
+    }
     table { border-collapse: collapse; width: 100%; margin-top: 6px; display: block; overflow-x: auto; white-space: nowrap; }
     th, td { padding: 10px 8px; border: 1px solid #ccc; font-size: 16px; }
     select {
@@ -33,18 +46,20 @@
       #dateSelectors {
         flex-direction: column;
         align-items: stretch;
-        gap: 8px;
+        gap: 10px;
+        width: 100%;
       }
 
       select {
         width: 100%;
         font-size: 18px;
-        padding: 12px 14px;
+        padding: 14px 16px;
       }
 
       button {
         width: 100%;
         font-size: 18px;
+        padding: 16px;
       }
 
       th, td {
@@ -59,14 +74,24 @@
 </head>
 <body>
 
-<h1 id="pageTitle">発注履歴</h1>
-<div id="dateSelectors" style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
-  <select id="yearSelect"></select>
-  <select id="monthSelect"></select>
-  <select id="daySelect"></select>
-  <button id="searchBtn">検索</button>
+<div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:10px;">
+  <h1 id="pageTitle">発注履歴</h1>
+
+  <div id="modeSelectWrap" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+    <select id="modeSelect">
+      <option value="day">日検索</option>
+      <option value="month">月検索</option>
+    </select>
+
+    <div id="dateSelectors" style="display:flex; gap:10px; align-items:center;">
+      <select id="yearSelect"></select>
+      <select id="monthSelect"></select>
+      <select id="daySelect"></select>
+      <button id="searchBtn">検索</button>
+    </div>
+  </div>
 </div>
-<button id="backToOrder">発注画面に戻る</button>
+<button id="backToOrder" style="margin-top:10px; width:100%;">発注画面に戻る</button>
 <div id="historyContainer" style="margin-top:12px;"></div>
 
 <script type="module">
@@ -129,13 +154,7 @@ async function loadHistory() {
       id,
       created_at,
       delivery_date,
-      note,
-      order_items (
-        id,
-        item_name,
-        category,
-        quantity
-      )
+      note
     `)
     .eq("store_id", STORE_ID)
     .order("created_at", { ascending: false });
@@ -144,15 +163,52 @@ async function loadHistory() {
 
   if (!data || data.length === 0) {
     container.innerHTML = "この店舗の発注履歴はまだありません（DBから0件）";
+    return;
   }
+
+  // ② viewから価格付き明細を取得
+  const orderIds = data.map(o => o.id).filter(id => id != null);
+
+  let itemsData = [];
+  let itemsError = null;
+
+  if (orderIds.length > 0) {
+    const res = await supabase
+      .from("view_order_items_totals")
+      .select("*")
+      .in("order_id", orderIds);
+
+    itemsData = res.data;
+    itemsError = res.error;
+  }
+
+  if (itemsError) {
+    console.error("items fetch error", itemsError);
+  }
+
+  console.log("orderIds:", orderIds);
+  console.log("itemsData:", itemsData);
+  if (itemsData && itemsData.length > 0) {
+    console.log("itemsData sample keys:", Object.keys(itemsData[0]));
+  }
+
+  // order_idごとにまとめる
+  const itemsByOrder = {};
+  (itemsData || []).forEach(row => {
+    if (!itemsByOrder[row.order_id]) {
+      itemsByOrder[row.order_id] = [];
+    }
+    itemsByOrder[row.order_id].push(row);
+  });
 
   const yearSelect = document.getElementById("yearSelect");
   const monthSelect = document.getElementById("monthSelect");
   const daySelect = document.getElementById("daySelect");
+  const modeSelect = document.getElementById("modeSelect");
 
   yearSelect.innerHTML = `<option value="">年</option>`;
   monthSelect.innerHTML = `<option value="">月</option>`;
-  daySelect.innerHTML = `<option value="">日</option>`;
+  daySelect.innerHTML = `<option value="month">月全体</option>`;
 
   // 年リスト作成（データから抽出）
   const years = data && data.length > 0
@@ -188,7 +244,7 @@ async function loadHistory() {
     const lastDay = new Date(y, m, 0).getDate();
     const currentSelected = Number(daySelect.value);
 
-    daySelect.innerHTML = `<option value="">日</option>`;
+    daySelect.innerHTML = `<option value="month">月全体</option>`;
 
     for (let d = 1; d <= lastDay; d++) {
       const option = document.createElement("option");
@@ -200,7 +256,7 @@ async function loadHistory() {
     if (currentSelected && currentSelected <= lastDay) {
       daySelect.value = currentSelected;
     } else if (!currentSelected) {
-      daySelect.value = "";
+      daySelect.value = "month";
     } else {
       daySelect.value = lastDay;
     }
@@ -210,6 +266,18 @@ async function loadHistory() {
   monthSelect.addEventListener("change", updateDayOptions);
 
   updateDayOptions();
+
+  // モード切替で日セレクトの表示制御
+  const toggleMode = () => {
+    if (modeSelect.value === "month") {
+      daySelect.style.display = "none";
+    } else {
+      daySelect.style.display = "inline-block";
+    }
+  };
+
+  modeSelect.addEventListener("change", toggleMode);
+  toggleMode();
 
   // 初期表示は本日
   if (yearSelect.value == today.getFullYear() &&
@@ -222,21 +290,47 @@ async function loadHistory() {
   const renderOrders = () => {
     const y = Number(yearSelect.value);
     const m = Number(monthSelect.value);
-    const d = Number(daySelect.value);
+    const mode = modeSelect.value;
+    const dayValue = daySelect.value;
+    const d = mode === "month" ? null : Number(dayValue);
 
     container.innerHTML = "";
+    let dayTotal = 0;
+
+    // 表示対象の年月タイトル
+    const headerDiv = document.createElement("div");
+    headerDiv.style.marginBottom = "12px";
+    headerDiv.style.fontSize = "18px";
+    headerDiv.style.fontWeight = "700";
+    headerDiv.textContent = d !== null
+      ? `${y}年${m}月${d}日の発注履歴`
+      : `${y}年${m}月の発注履歴（月集計）`;
+
+    container.appendChild(headerDiv);
 
     const filtered = data.filter(order => {
       const date = new Date(order.created_at);
+
+      // 日が選択されている場合 → 日単位
+      if (d !== null) {
+        return (
+          date.getFullYear() === y &&
+          date.getMonth() + 1 === m &&
+          date.getDate() === d
+        );
+      }
+
+      // 日が未選択 → 月単位
       return (
         date.getFullYear() === y &&
-        date.getMonth() + 1 === m &&
-        date.getDate() === d
+        date.getMonth() + 1 === m
       );
     });
 
     if (filtered.length === 0) {
-      container.innerHTML = "この日の発注履歴はありません";
+      container.innerHTML = d !== null
+        ? "この日の発注履歴はありません"
+        : "この月の発注履歴はありません";
       return;
     }
 
@@ -271,7 +365,9 @@ async function loadHistory() {
           <tr>
             <th style="width:50%">品目名</th>
             <th style="width:25%">カテゴリ</th>
-            <th style="width:25%; text-align:right">数量</th>
+            <th style="width:20%; text-align:right">数量</th>
+            <th style="width:20%; text-align:right">単価</th>
+            <th style="width:20%; text-align:right">金額</th>
           </tr>
         </thead>
         <tbody></tbody>
@@ -279,19 +375,55 @@ async function loadHistory() {
 
       const tbody = table.querySelector("tbody");
 
-      (order.order_items || []).forEach(item => {
+      let orderTotal = 0;
+
+      const orderItems = itemsByOrder[order.id] || [];
+      console.log("order.id:", order.id, "items:", orderItems);
+
+      orderItems.forEach(item => {
+        // 柔軟にカラム対応（viewの構造に合わせる）
+        const qty = Number(item.quantity ?? item.total_quantity ?? item.qty) || 0;
+        const price = Number(item.price ?? item.unit_price ?? 0);
+        const total = Number(item.total_amount ?? item.total ?? (qty * price)) || 0;
+        orderTotal += total;
+
         const tr = document.createElement("tr");
         tr.innerHTML = `
-          <td>${item.item_name ?? ""}</td>
-          <td>${item.category ?? ""}</td>
-          <td style="text-align:right; font-weight:600">${item.quantity ?? ""}</td>
+          <td>${item.item_name ?? item.name ?? ""}</td>
+          <td>${item.category ?? item.category_name ?? ""}</td>
+          <td style="text-align:right; font-weight:600">${qty}</td>
+          <td style="text-align:right">${price.toLocaleString()}</td>
+          <td style="text-align:right; font-weight:600">${total.toLocaleString()}</td>
         `;
         tbody.appendChild(tr);
       });
 
+      // 注文ごとの合計
+      const totalRow = document.createElement("tr");
+      totalRow.innerHTML = `
+        <td colspan="4" style="text-align:right; font-weight:700">合計</td>
+        <td style="text-align:right; font-weight:700">${orderTotal.toLocaleString()}</td>
+      `;
+      tbody.appendChild(totalRow);
+
+      // 日別合計の加算
+      dayTotal += orderTotal;
+
       wrapper.appendChild(table);
       container.appendChild(wrapper);
     });
+
+    // 日別/月別合計表示（上部に移動）
+    const summaryDiv = document.createElement("div");
+    summaryDiv.style.marginBottom = "16px";
+    summaryDiv.style.fontSize = "20px";
+    summaryDiv.style.fontWeight = "700";
+    summaryDiv.style.textAlign = "right";
+    summaryDiv.textContent = d !== null
+      ? `合計金額：${dayTotal.toLocaleString()}円（${y}年${m}月${d}日）`
+      : `合計金額：${dayTotal.toLocaleString()}円（${y}年${m}月・月合計）`;
+
+    container.insertBefore(summaryDiv, container.children[1]);
   };
 
   searchBtn.onclick = renderOrders;

@@ -223,9 +223,9 @@
 </div>
 
 <div id="categoryButtons">
-  <button data-category="C" class="active">Packaging</button>
+  <button data-category="B" class="active">Bakery / Dolce</button>
   <button data-category="A">Food</button>
-  <button data-category="B">Bakery / Dolce</button>
+  <button data-category="C">Packaging</button>
 </div>
 
 <div id="dateSelector" style="margin-top:20px;">
@@ -322,19 +322,22 @@ setTimeout(async () => {
 // 店舗 × 画面カテゴリ × itemu_category 対応表
 const STORE_CATEGORY_MAP = {
   store_a: {
+    A: ["a","b","d","e","G","h"],   // Food
+    B: ["i","k","J"],    // Bakery / Dolce
     C: ["m"],   // Packaging
-    A: ["a","b","d","e","g"],   // Food
-    B: ["i","k","J"]    // Bakery / Dolce
+
   },
   store_b: {
-    C: ["m"],
     A: ["a","b","e","f"],
-    B: ["i","j","k"]
+    B: ["i","j","k"],
+    C: ["m"],
+
   },
   store_c: {
+    A: ["a","c","e","g","h"],
+    B: ["i","k","J"],
     C: ["m"],
-    A: ["a","c","e","g"],
-    B: ["i","k","J"]
+
   }
 };
 
@@ -422,7 +425,7 @@ document.querySelectorAll("#categoryButtons button").forEach(btn => {
   };
 });
 
-loadItems("C");
+loadItems("B");
 
 // Standardボタン：usual_ordersから自動入力（読込専用）
 document.getElementById("standardBtn").onclick = async () => {
