@@ -104,6 +104,9 @@
   </style>
 </head>
 <body>
+<div style="margin-bottom:16px;">
+  <button onclick="location.replace('./master.html')">← 管理画面に戻る</button>
+</div>
 
 <div style="display:flex; align-items:baseline; gap:16px; flex-wrap:wrap;">
   <h1 style="margin:0;">発注管理画面（品目別合計）</h1>
@@ -141,7 +144,8 @@
   </thead>
   <tbody id="summaryBody"></tbody>
 </table>
-<div style="margin-top:16px; display:flex; gap:12px;">
+<div style="margin-top:16px; display:flex; gap:12px; flex-wrap:wrap;">
+  <button id="priceMasterBtn">商品単価管理</button>
   <button id="minusBtn">マイナス処理</button>
   <button id="logout">ログアウト</button>
 </div>
@@ -412,6 +416,14 @@ monthSelect.addEventListener("change", () => {
       <td><strong>${grandTotal.toLocaleString()}円</strong></td>
     `;
     tbody.appendChild(totalRow);
+  }
+
+  const priceMasterBtn = document.getElementById("priceMasterBtn");
+
+  if (priceMasterBtn) {
+    priceMasterBtn.addEventListener("click", () => {
+      location.replace("./price-master.html");
+    });
   }
 
   const minusBtn = document.getElementById("minusBtn");

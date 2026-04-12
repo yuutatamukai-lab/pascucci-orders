@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>商品単価管理</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <style>
+    body {
+      font-family: sans-serif;
+      margin: 0;
+      padding: 16px;
+      background: #f5f5f5;
+    }
+
+    h1 {
+      margin-bottom: 16px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: white;
+    }
+
+    th, td {
+      padding: 10px;
+      border-bottom: 1px solid #ddd;
+      text-align: left;
+    }
+
+    button {
+      padding: 8px 12px;
+      font-size: 14px;
+    }
+
+    input {
+      padding: 8px;
+      font-size: 14px;
+      width: 100px;
+    }
+
+    .row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    
+    @media (max-width: 600px) {
+      body {
+        padding: 10px;
+      }
+
+      h1 {
+        font-size: 18px;
+      }
+
+      table, thead, tbody, th, td, tr {
+        display: block;
+      }
+
+      thead {
+        display: none;
+      }
+
+      tr {
+        background: white;
+        margin-bottom: 12px;
+        border-radius: 8px;
+        padding: 10px;
+      }
+
+      td {
+        border: none;
+        padding: 6px 0;
+      }
+
+      td::before {
+        font-weight: bold;
+        display: block;
+      }
+
+      td:nth-child(1)::before { content: "商品名"; }
+      td:nth-child(2)::before { content: "単価"; }
+      td:nth-child(3)::before { content: "開始日"; }
+      td:nth-child(4)::before { content: "操作"; }
+
+      input {
+        width: 100%;
+      }
+
+      button {
+        width: 100%;
+      }
+
+      .row {
+        flex-direction: column;
+        align-items: stretch;
+      }
+    }
+  </style>
+</head>
+
+<body>
+<div style="margin-bottom:16px;">
+  <button onclick="location.replace('./master.html')">← 管理画面に戻る</button>
+</div>
+
+<h1>商品単価管理</h1>
+
+<table id="priceTable">
+  <thead>
+    <tr>
+      <th>商品名</th>
+      <th>単価</th>
+      <th>開始日</th>
+      <th>操作</th>
+    </tr>
+  </thead>
+  <tbody></tbody>
+</table>
+
+<script>
+const SUPABASE_URL = "https://ididxhgszvdvfyfzwfgm.supabase.co";
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlkaWR4aGdzenZkdmZ5Znp3ZmdtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY3Mzc5MzgsImV4cCI6MjA4MjMxMzkzOH0.ZVOS2nxT8KbCB7U5xL0DKy9DGj3KrjJU7AJkR0_b33g";
+
+const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+init();
+
+async function init() {
+  const { data: sessionData } = await supabaseClient.auth.getSession();
+
+  if (!sessionData.session) {
+    window.location.href = "login.html";
+    return;
+  }
+
+  loadPrices();
+}
+
+async function loadPrices() {
+  const { data, error } = await supabaseClient
+    .from("view_item_prices_current")
+    .select("*");
+
+  if (error) {
+    console.error(error);
+    return;
+  }
+
+  renderTable(data);
+}
+
+function renderTable(data) {
+  const tbody = document.querySelector("#priceTable tbody");
+  tbody.innerHTML = "";
+
+  data.forEach(item => {
+    const tr = document.createElement("tr");
+
+    tr.innerHTML = `
+      <td>${item.item_name || item.item_id}</td>
+      <td>${item.unit_price ?? "未設定"}</td>
+      <td>${item.start_date ? formatDate(item.start_date) : "-"}</td>
+      <td>
+        <div class="row">
+          <input type="number" id="price-${item.item_id}" placeholder="新単価">
+          <button onclick="updatePrice('${item.item_id}')">変更</button>
+        </div>
+      </td>
+    `;
+
+    tbody.appendChild(tr);
+  });
+}
+
+function formatDate(dateStr) {
+  return new Date(dateStr).toISOString().slice(0, 10);
+}
+
+async function updatePrice(item_id) {
+  const input = document.getElementById(`price-${item_id}`);
+  const newPrice = Number(input.value);
+
+  if (!newPrice) {
+    alert("単価を入力してください");
+    return;
+  }
+
+  const today = new Date().toISOString();
+
+  // ① 現在の単価を終了
+  const { error: updateError } = await supabaseClient
+    .from("item_prices")
+    .update({ end_date: today })
+    .eq("item_id", item_id)
+    .is("end_date", null);
+
+  if (updateError) {
+    console.error(updateError);
+    alert("更新失敗");
+    return;
+  }
+
+  // ② 新しい単価を追加
+  const { error: insertError } = await supabaseClient
+    .from("item_prices")
+    .insert({
+      item_id: item_id,
+      unit_price: newPrice,
+      start_date: today,
+      end_date: null
+    });
+
+  if (insertError) {
+    console.error(insertError);
+    alert("追加失敗");
+    return;
+  }
+
+  alert("単価更新完了");
+
+  loadPrices();
+}
+</script>
+
+</body>
+</html>
