@@ -1,125 +1,160 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8">
-  <title>商品単価管理</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta charset="UTF-8">
+<title>商品単価管理</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
-  <style>
-    body {
-      font-family: sans-serif;
-      margin: 0;
-      padding: 16px;
-      background: #f5f5f5;
-    }
+<style>
+body {
+  font-family: sans-serif;
+  margin: 0;
+  padding: 16px;
+  background: #f5f5f5;
+}
 
-    h1 {
-      margin-bottom: 16px;
-    }
+h1 {
+  margin-bottom: 16px;
+}
 
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      background: white;
-    }
+table {
+  width: 100%;
+  border-collapse: collapse;
+  background: white;
+}
 
-    th, td {
-      padding: 10px;
-      border-bottom: 1px solid #ddd;
-      text-align: left;
-    }
+th, td {
+  padding: 10px;
+  border-bottom: 1px solid #ddd;
+  text-align: left;
+}
 
-    button {
-      padding: 8px 12px;
-      font-size: 14px;
-    }
+td.price {
+  font-weight: bold;
+  font-size: 16px;
+}
 
-    input {
-      padding: 8px;
-      font-size: 14px;
-      width: 100px;
-    }
+td.price.empty {
+  color: #c00;
+}
 
-    .row {
-      display: flex;
-      gap: 8px;
-      align-items: center;
-    }
-    
-    @media (max-width: 600px) {
-      body {
-        padding: 10px;
-      }
+button {
+  padding: 12px;
+  font-size: 16px;
+}
 
-      h1 {
-        font-size: 18px;
-      }
+input {
+  padding: 10px;
+  font-size: 16px;
+  width: 100px;
+}
 
-      table, thead, tbody, th, td, tr {
-        display: block;
-      }
+/* 数値入力の上下ボタン非表示 */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
 
-      thead {
-        display: none;
-      }
+input[type="number"] {
+  -moz-appearance: textfield;
+}
 
-      tr {
-        background: white;
-        margin-bottom: 12px;
-        border-radius: 8px;
-        padding: 10px;
-      }
+.row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
 
-      td {
-        border: none;
-        padding: 6px 0;
-      }
+.updated {
+  background-color: #d4edda;
+  transition: background-color 1s ease;
+}
 
-      td::before {
-        font-weight: bold;
-        display: block;
-      }
+.group-header {
+  background: #333;
+  color: #fff;
+  font-weight: bold;
+  cursor: pointer;
+}
 
-      td:nth-child(1)::before { content: "商品名"; }
-      td:nth-child(2)::before { content: "単価"; }
-      td:nth-child(3)::before { content: "開始日"; }
-      td:nth-child(4)::before { content: "操作"; }
+.group-header .toggle {
+  margin-right: 8px;
+  font-weight: bold;
+}
 
-      input {
-        width: 100%;
-      }
+.hidden-row {
+  display: none;
+}
 
-      button {
-        width: 100%;
-      }
+/* スマホ対応 */
+@media (max-width: 600px) {
+  table, thead, tbody, th, td, tr {
+    display: block;
+  }
 
-      .row {
-        flex-direction: column;
-        align-items: stretch;
-      }
-    }
-  </style>
+  thead { display: none; }
+
+  tr {
+    background: white;
+    margin-bottom: 12px;
+    border-radius: 8px;
+    padding: 10px;
+  }
+
+  td {
+    border: none;
+    padding: 6px 0;
+  }
+
+  td::before {
+    font-weight: bold;
+    display: block;
+  }
+
+  td:nth-child(1)::before { content: "商品名"; }
+  td:nth-child(2)::before { content: "単価"; }
+  td:nth-child(3)::before { content: "開始日"; }
+  td:nth-child(4)::before { content: "操作"; }
+
+  input, button {
+    width: 100%;
+  }
+
+  .row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+</style>
 </head>
 
 <body>
+
 <div style="margin-bottom:16px;">
   <button onclick="location.replace('./master.html')">← 管理画面に戻る</button>
 </div>
 
 <h1>商品単価管理</h1>
+<div id="groupFilter" style="margin-bottom:12px;">
+  <button onclick="setGroupFilter('all')">すべて</button>
+  <button onclick="setGroupFilter('Bakery / Dolce')">Bakery / Dolce</button>
+  <button onclick="setGroupFilter('Food')">Food</button>
+  <button onclick="setGroupFilter('Packaging')">Packaging</button>
+</div>
 
 <table id="priceTable">
-  <thead>
-    <tr>
-      <th>商品名</th>
-      <th>単価</th>
-      <th>開始日</th>
-      <th>操作</th>
-    </tr>
-  </thead>
-  <tbody></tbody>
+<thead>
+<tr>
+  <th>商品名</th>
+  <th>単価</th>
+  <th>開始日</th>
+  <th>操作</th>
+</tr>
+</thead>
+<tbody></tbody>
 </table>
 
 <script>
@@ -128,13 +163,15 @@ const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
+let currentGroupFilter = "all";
+
 init();
 
 async function init() {
   const { data: sessionData } = await supabaseClient.auth.getSession();
 
   if (!sessionData.session) {
-    window.location.href = "login.html";
+    location.href = "login.html";
     return;
   }
 
@@ -151,29 +188,147 @@ async function loadPrices() {
     return;
   }
 
-  renderTable(data);
+  // item_idごとに最新のみ抽出（start_dateが最大のもの）
+  const latestMap = {};
+
+  data.forEach(item => {
+    const current = latestMap[item.item_id];
+
+    if (!current || new Date(item.start_date) > new Date(current.start_date)) {
+      latestMap[item.item_id] = item;
+    }
+  });
+
+  const latestData = Object.values(latestMap);
+
+  renderTable(latestData);
+}
+
+function setGroupFilter(groupName) {
+  currentGroupFilter = groupName;
+  loadPrices();
+
+  document.querySelectorAll("#groupFilter button").forEach(btn => {
+    btn.style.background = "";
+    btn.style.color = "";
+  });
+
+  const activeBtn = Array.from(document.querySelectorAll("#groupFilter button"))
+    .find(b => b.textContent === groupName || (groupName === "all" && b.textContent === "すべて"));
+
+  if (activeBtn) {
+    activeBtn.style.background = "#333";
+    activeBtn.style.color = "#fff";
+  }
 }
 
 function renderTable(data) {
   const tbody = document.querySelector("#priceTable tbody");
   tbody.innerHTML = "";
 
-  data.forEach(item => {
-    const tr = document.createElement("tr");
+  // category → グループの対応（ここだけ編集すればOK）
+  const categoryToGroup = {
+    bakery: "Bakery / Dolce",
+    dolce: "Bakery / Dolce",
+    i: "Bakery / Dolce",
+    c: "Bakery / Dolce",
+    k: "Bakery / Dolce",
+    j: "Bakery / Dolce",
+    J: "Bakery / Dolce",
+    food: "Food",
+    a: "Food",
+    b: "Food",
+    d: "Food",
+    e: "Food",
+    f: "Food",
+    g: "Food",
+    G: "Food",
+    h: "Food",
+    l: "Food",
+    packaging: "Packaging",
+    m: "Packaging"
+  };
 
-    tr.innerHTML = `
-      <td>${item.item_name || item.item_id}</td>
-      <td>${item.unit_price ?? "未設定"}</td>
-      <td>${item.start_date ? formatDate(item.start_date) : "-"}</td>
-      <td>
-        <div class="row">
-          <input type="number" id="price-${item.item_id}" placeholder="新単価">
-          <button onclick="updatePrice('${item.item_id}')">変更</button>
-        </div>
+  // グループごとにまとめる
+  const grouped = {};
+
+  data.forEach(item => {
+    const groupName = categoryToGroup[item.category] || "Other";
+
+    if (!grouped[groupName]) grouped[groupName] = {};
+    if (!grouped[groupName][item.category]) grouped[groupName][item.category] = [];
+
+    grouped[groupName][item.category].push(item);
+  });
+
+  Object.keys(grouped).forEach(groupName => {
+    if (currentGroupFilter !== "all" && currentGroupFilter !== groupName) return;
+
+    const groupId = "group-" + groupName;
+
+    // ヘッダー
+    const header = document.createElement("tr");
+    header.className = "group-header";
+    header.innerHTML = `
+      <td colspan="4">
+        <span class="toggle">▼</span>${groupName}
       </td>
     `;
 
-    tbody.appendChild(tr);
+    header.addEventListener("click", () => {
+      const rows = document.querySelectorAll(`[data-main='${groupId}']`);
+      const isHidden = rows[0]?.classList.contains("hidden-row");
+
+      rows.forEach(r => r.classList.toggle("hidden-row"));
+
+      const icon = header.querySelector(".toggle");
+      icon.textContent = isHidden ? "▼" : "▶";
+    });
+
+    tbody.appendChild(header);
+
+    // 中カテゴリ（= DBのcategory）
+    Object.keys(grouped[groupName]).forEach(sub => {
+      const items = grouped[groupName][sub];
+
+      // 中カテゴリ行
+      const subRow = document.createElement("tr");
+      subRow.setAttribute("data-main", groupId);
+      subRow.innerHTML = `
+        <td colspan="4" style="background:#eee;font-weight:bold;">
+          └ ${sub}
+        </td>
+      `;
+      tbody.appendChild(subRow);
+
+      // 商品行
+      items.forEach(item => {
+        const tr = document.createElement("tr");
+        tr.setAttribute("data-main", groupId);
+
+        tr.innerHTML = `
+          <td>${item.item_name || item.item_id}</td>
+          <td class="price ${item.unit_price ? "" : "empty"}">
+            ${item.unit_price ?? "未設定"}
+          </td>
+          <td>${item.start_date ? formatDate(item.start_date) : "-"}</td>
+          <td>
+            <div class="row">
+              <input type="number" inputmode="numeric"
+                id="price-${item.item_id}"
+                placeholder="新単価"
+                onkeydown="if(event.key==='Enter'){ updatePrice('${item.item_id}', this) }">
+
+              <button onclick="updatePrice('${item.item_id}', this.previousElementSibling)">
+                変更
+              </button>
+            </div>
+          </td>
+        `;
+
+        tbody.appendChild(tr);
+      });
+    });
   });
 }
 
@@ -181,18 +336,23 @@ function formatDate(dateStr) {
   return new Date(dateStr).toISOString().slice(0, 10);
 }
 
-async function updatePrice(item_id) {
-  const input = document.getElementById(`price-${item_id}`);
+async function updatePrice(item_id, inputEl) {
+  const input = inputEl;
+  const button = input.nextElementSibling;
   const newPrice = Number(input.value);
 
-  if (!newPrice) {
-    alert("単価を入力してください");
+  // バリデーション
+  if (!newPrice || newPrice <= 0 || newPrice > 10000) {
+    alert("単価が不正です");
     return;
   }
 
+  button.disabled = true;
+  button.textContent = "更新中...";
+
   const today = new Date().toISOString();
 
-  // ① 現在の単価を終了
+  // ① 現在の単価終了
   const { error: updateError } = await supabaseClient
     .from("item_prices")
     .update({ end_date: today })
@@ -202,28 +362,41 @@ async function updatePrice(item_id) {
   if (updateError) {
     console.error(updateError);
     alert("更新失敗");
+    resetButton(button);
     return;
   }
 
-  // ② 新しい単価を追加
+  // ② 新単価追加
   const { error: insertError } = await supabaseClient
     .from("item_prices")
     .insert({
-      item_id: item_id,
+      item_id,
       unit_price: newPrice,
       start_date: today,
-      end_date: null
+      end_date: today
     });
 
   if (insertError) {
     console.error(insertError);
     alert("追加失敗");
+    resetButton(button);
     return;
   }
 
-  alert("単価更新完了");
+  // UI反映
+  const row = input.closest("tr");
+  row.classList.add("updated");
+  setTimeout(() => row.classList.remove("updated"), 1000);
+
+  input.value = "";
+  resetButton(button);
 
   loadPrices();
+}
+
+function resetButton(button) {
+  button.disabled = false;
+  button.textContent = "変更";
 }
 </script>
 
