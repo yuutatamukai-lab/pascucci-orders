@@ -104,9 +104,6 @@
   </style>
 </head>
 <body>
-<div style="margin-bottom:16px;">
-  <button onclick="location.replace('./master.html')">← 管理画面に戻る</button>
-</div>
 
 <div style="display:flex; align-items:baseline; gap:16px; flex-wrap:wrap;">
   <h1 style="margin:0;">発注管理画面（品目別合計）</h1>
@@ -134,10 +131,36 @@
   <select id="daySelect"></select>
 </div>
 
+<div id="summaryCards" style="display:flex; gap:12px; flex-wrap:wrap; margin-bottom:16px;">
+  <div style="border:1px solid #ccc; padding:12px; min-width:180px; border-radius:8px;">
+    <div>月間総発注金額</div>
+    <div id="grandMonthTotal" style="font-size:22px; font-weight:bold;">-</div>
+  </div>
+  <div style="border:1px solid #ccc; padding:12px; min-width:180px; border-radius:8px;">
+    <div>発注品目数</div>
+    <div id="itemCount" style="font-size:22px; font-weight:bold;">-</div>
+  </div>
+</div>
+
+
+<div style="margin-bottom:18px;">
+  <h3 style="margin:0 0 8px 0;">アイテム別ランキング TOP5（月間）</h3>
+  <table>
+    <thead>
+      <tr>
+        <th>順位</th>
+        <th>品目</th>
+        <th>個数</th>
+      </tr>
+    </thead>
+    <tbody id="itemRankingBody"></tbody>
+  </table>
+</div>
+
 <table>
   <thead>
     <tr>
-      <th>品目</th>
+      <th>品目（カテゴリ）</th>
       <th>合計数</th>
       <th>合計金額</th>
     </tr>
@@ -170,6 +193,7 @@
     } else {
       daySelect.style.display = "none";
     }
+    document.getElementById('itemRankingBody').parentElement.parentElement.style.display = (periodSelect.value === 'month') ? 'block' : 'none';
   }
 
   periodSelect.addEventListener("change", updateDateControl);
@@ -260,6 +284,12 @@ monthSelect.addEventListener("change", () => {
   const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlkaWR4aGdzenZkdmZ5Znp3ZmdtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY3Mzc5MzgsImV4cCI6MjA4MjMxMzkzOH0.ZVOS2nxT8KbCB7U5xL0DKy9DGj3KrjJU7AJkR0_b33g";
 
   const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  const storeLabels = {
+    store_a: "仙石山",
+    store_b: "麹町",
+    store_c: "西麻布"
+  };
   /* ===============================
      認証・権限チェック（Master専用）
   ================================= */
@@ -316,9 +346,17 @@ monthSelect.addEventListener("change", () => {
     const periodValue = document.getElementById("periodSelect").value;
     const storeValue = document.getElementById("storeSelect").value;
 
-    let query = supabase
-      .from("view_order_items_totals")
-      .select("*");
+    let query;
+
+    if (periodValue === "month") {
+      query = supabase
+        .from("view_monthly_item_totals")
+        .select("*");
+    } else {
+      query = supabase
+        .from("view_order_items_totals")
+        .select("*");
+    }
 
     // 店舗フィルタ（DB側）
     if (storeValue) {
@@ -334,21 +372,15 @@ monthSelect.addEventListener("change", () => {
       if (periodValue === "month") {
         const year = yearSelect.value;
         const month = monthSelect.value;
+        const targetMonth = `${year}-${month}-01`;
 
-        const startStr = `${year}-${month}-01`;
-
-        const endDate = new Date(year, Number(month), 0);
-        const endStr = endDate.toISOString().slice(0, 10);
-
-        query = query
-          .gte("delivery_date", startStr)
-          .lte("delivery_date", endStr);
+        query = query.eq("sales_month", targetMonth);
       }
     }
 
     let viewText = "表示中：";
 
-    if (storeValue) viewText += `店舗=${storeValue} `;
+    if (storeValue) viewText += `店舗=${storeLabels[storeValue] || storeValue} `;
 
     if (periodValue === "month") {
       viewText += `${yearSelect.value}年${Number(monthSelect.value)}月`;
@@ -364,49 +396,91 @@ monthSelect.addEventListener("change", () => {
 
     const filteredData = data;
 
-    if (error) {
-      alert("読み込み失敗");
-      return;
-    }
-
     const tbody = document.getElementById("summaryBody");
+    const grandMonthTotalEl = document.getElementById("grandMonthTotal");
+    const itemCountEl = document.getElementById("itemCount");
+    const itemRankingBody = document.getElementById("itemRankingBody");
+    itemRankingBody.innerHTML = "";
     tbody.innerHTML = "";
 
     if (!filteredData || filteredData.length === 0) {
       const tr = document.createElement("tr");
       tr.innerHTML = `<td colspan="3">データがありません</td>`;
       tbody.appendChild(tr);
+      grandMonthTotalEl.textContent = "0円";
+      itemCountEl.textContent = "0";
       return;
     }
 
-    const summary = {};
     let grandTotal = 0;
 
-    filteredData.forEach(item => {
-      const id = item.item_id;
-      const name = item.item_name;
-      const qty = Number(item.quantity || 0);
-      const total = Number(item.total_price || 0);
+    if (periodValue === "month") {
+      filteredData
+        .sort((a,b)=> String(a.category).localeCompare(String(b.category)) || String(a.item_name).localeCompare(String(b.item_name)))
+        .forEach(item => {
+          const total = Number(item.total_sales || 0);
+          grandTotal += total;
+          const tr = document.createElement("tr");
+          tr.innerHTML = `
+            <td>${item.item_name}（${item.category || '-'}）</td>
+            <td>${Number(item.total_quantity || 0)}</td>
+            <td>${total.toLocaleString()}円</td>
+          `;
+          tbody.appendChild(tr);
+        });
+    } else {
+      var summary = {};
 
-      if (!summary[id]) {
-        summary[id] = { name, qty: 0, total: 0 };
-      }
+      filteredData.forEach(item => {
+        const id = item.item_id;
+        const name = item.item_name;
+        const qty = Number(item.quantity || 0);
+        const total = Number(item.line_total || 0);
 
-      summary[id].qty += qty;
-      summary[id].total += total;
+        if (!summary[id]) {
+          summary[id] = { name, qty: 0, total: 0 };
+        }
 
-      grandTotal += total;
-    });
+        summary[id].qty += qty;
+        summary[id].total += total;
 
-    Object.keys(summary).sort().forEach(id => {
-      const tr = document.createElement("tr");
-      tr.innerHTML = `
-        <td>${summary[id].name}</td>
-        <td>${summary[id].qty}</td>
-        <td>${summary[id].total.toLocaleString()}円</td>
-      `;
-      tbody.appendChild(tr);
-    });
+        grandTotal += total;
+      });
+
+      Object.values(summary)
+        .sort((a,b)=>a.name.localeCompare(b.name))
+        .forEach(row => {
+          const tr = document.createElement("tr");
+          tr.innerHTML = `
+            <td>${row.name}</td>
+            <td>${row.qty}</td>
+            <td>${row.total.toLocaleString()}円</td>
+          `;
+          tbody.appendChild(tr);
+        });
+    }
+
+    grandMonthTotalEl.textContent = `${grandTotal.toLocaleString()}円`;
+    itemCountEl.textContent = periodValue === "month"
+      ? filteredData.length.toString()
+      : Object.keys(summary || {}).length.toString();
+
+    if (periodValue === "month") {
+      filteredData
+        .filter(item => item.category !== 'i')
+        .slice()
+        .sort((a,b)=> (b.total_quantity || 0) - (a.total_quantity || 0))
+        .slice(0,5)
+        .forEach((item,index)=>{
+          const tr=document.createElement('tr');
+          tr.innerHTML=`
+            <td>${index + 1}位</td>
+            <td>${item.item_name}</td>
+            <td>${Number(item.total_quantity || 0)}</td>
+          `;
+          itemRankingBody.appendChild(tr);
+        });
+    }
 
     // 月（または日）の総合計表示
     const totalRow = document.createElement("tr");
