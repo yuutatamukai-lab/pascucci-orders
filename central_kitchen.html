@@ -178,8 +178,6 @@
     <label>店舗切り替え：</label>
     <button class="storeBtn" data-store="store_a">仙石山</button>
     <button class="storeBtn" data-store="store_b">麹町</button>
-    <button class="storeBtn" data-store="store_c">西麻布
-    </button>
   </div>
 
   <!-- 印刷ボタン -->
@@ -195,12 +193,6 @@
       onclick="printCentral('store_b')"
     >
       麹町 印刷
-    </button>
-    <button
-      style="font-size:20px; padding:12px 20px;"
-      onclick="printCentral('store_c')"
-    >
-      西麻布 印刷
     </button>
   </div>
 
@@ -305,7 +297,7 @@ async function loadTodayOrders() {
     ALLOWED_CATEGORIES = ["a", "b","c","e","f","i","j","k"];
   } else if (userStoreId === "storage_shed") {
     // 倉庫用カテゴリー
-    ALLOWED_CATEGORIES = ["m","d","g","h","J"];
+    ALLOWED_CATEGORIES = ["m","d","g","G","h","J"];
   }
 
   console.log("読み込み開始", {
