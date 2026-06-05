@@ -275,7 +275,6 @@ let currentStore = "store_a";
 const STORE_NAMES = {
   store_a: "仙石山",
   store_b: "麹町",
-  store_c: "西麻布"
 };
 
 const todayTable = document.getElementById("todayTable");
@@ -294,10 +293,10 @@ async function loadTodayOrders() {
 
   if (userStoreId === "central_kitchen") {
     // セントラルキッチン用カテゴリー
-    ALLOWED_CATEGORIES = ["a", "b","c","e","f","i","j","k"];
+    ALLOWED_CATEGORIES = ["a", "b","e","f","i","j","k"];
   } else if (userStoreId === "storage_shed") {
     // 倉庫用カテゴリー
-    ALLOWED_CATEGORIES = ["m","d","g","G","h","J"];
+    ALLOWED_CATEGORIES = ["m","d","c","g","G","h","J"];
   }
 
   console.log("読み込み開始", {
