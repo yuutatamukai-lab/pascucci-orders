@@ -202,15 +202,31 @@
   <details open>
     <summary style="font-weight:bold; cursor:pointer;">今日の発注一覧</summary>
 
-    <table>
-      <thead>
-        <tr>
-          <th>品目</th>
-          <th>合計数量</th>
-        </tr>
-      </thead>
-      <tbody id="todayTable"></tbody>
-    </table>
+    <div id="centralSection" style="margin-top:16px;">
+      <h2 style="margin-bottom:8px;">セントラルキッチン</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>品目</th>
+            <th>合計数量</th>
+          </tr>
+        </thead>
+        <tbody id="centralTable"></tbody>
+      </table>
+    </div>
+
+    <div id="storageSection" style="margin-top:24px;">
+      <h2 style="margin-bottom:8px;">倉庫</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>品目</th>
+            <th>合計数量</th>
+          </tr>
+        </thead>
+        <tbody id="storageTable"></tbody>
+      </table>
+    </div>
     <!-- 備考表示 -->
     <div id="todayNote" style="
       margin-top:16px;
@@ -277,7 +293,10 @@ const STORE_NAMES = {
   store_b: "麹町",
 };
 
-const todayTable = document.getElementById("todayTable");
+const centralTable = document.getElementById("centralTable");
+const storageTable = document.getElementById("storageTable");
+const centralSection = document.getElementById("centralSection");
+const storageSection = document.getElementById("storageSection");
 
 async function loadTodayOrders() {
   const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
@@ -287,17 +306,13 @@ async function loadTodayOrders() {
   document.getElementById("currentStoreLabel").textContent =
     `表示中店舗：${STORE_NAMES[currentStore] ?? currentStore}`;
 
-  todayTable.innerHTML = "";
+  centralTable.innerHTML = "";
+  storageTable.innerHTML = "";
+  centralSection.style.display = "block";
+  storageSection.style.display = "block";
 
-  let ALLOWED_CATEGORIES = [];
-
-  if (userStoreId === "central_kitchen") {
-    // セントラルキッチン用カテゴリー
-    ALLOWED_CATEGORIES = ["a", "b","e","f","i","j","k","m","d","c","g","G","h","J"];
-  } else if (userStoreId === "storage_shed") {
-    // 倉庫用カテゴリー
-    ALLOWED_CATEGORIES = ["m","d","c","g","G","h","J"];
-  }
+  const CENTRAL_CATEGORIES = ["a","b","e","f","i","j","k"];
+  const STORAGE_CATEGORIES = ["m","d","c","g","G","h","J"];
 
   console.log("読み込み開始", {
     store: currentStore,
@@ -320,7 +335,8 @@ async function loadTodayOrders() {
   }
 
   if (!ordersData || ordersData.length === 0) {
-    todayTable.innerHTML = `<tr><td colspan="2">データがありません</td></tr>`;
+    centralTable.innerHTML = `<tr><td colspan="2">データがありません</td></tr>`;
+    storageSection.style.display = "none";
     document.getElementById("todayNote").textContent = "備考：なし";
     return;
   }
@@ -349,30 +365,64 @@ async function loadTodayOrders() {
     return;
   }
 
-  const categorizedTotals = {};
+  const centralTotals = {};
+  const storageTotals = {};
 
   itemsData.forEach(itemRow => {
-    if (!ALLOWED_CATEGORIES.includes(itemRow.category)) return;
-
     const category = itemRow.category;
     const item = itemRow.item_name ?? "未分類";
     const qty = Number(itemRow.quantity) || 0;
 
-    if (!categorizedTotals[category]) {
-      categorizedTotals[category] = {};
+    if (CENTRAL_CATEGORIES.includes(category)) {
+      if (!centralTotals[item]) {
+        centralTotals[item] = 0;
+      }
+      centralTotals[item] += qty;
     }
 
-    categorizedTotals[category][item] =
-      (categorizedTotals[category][item] || 0) + qty;
+    if (STORAGE_CATEGORIES.includes(category)) {
+      if (!storageTotals[item]) {
+        storageTotals[item] = 0;
+      }
+      storageTotals[item] += qty;
+    }
   });
 
-  Object.values(categorizedTotals).forEach(items => {
-    Object.entries(items).forEach(([item, qty]) => {
+  if (userStoreId === "central_kitchen") {
+    Object.entries(centralTotals).forEach(([item, qty]) => {
       const tr = document.createElement("tr");
       tr.innerHTML = `<td>${item}</td><td>${qty}</td>`;
-      todayTable.appendChild(tr);
+      centralTable.appendChild(tr);
     });
-  });
+
+    Object.entries(storageTotals).forEach(([item, qty]) => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td>${item}</td><td>${qty}</td>`;
+      storageTable.appendChild(tr);
+    });
+
+    if (Object.keys(centralTotals).length === 0) {
+      centralSection.style.display = "none";
+    }
+
+    if (Object.keys(storageTotals).length === 0) {
+      storageSection.style.display = "none";
+    }
+  }
+
+  if (userStoreId === "storage_shed") {
+    centralSection.style.display = "none";
+
+    Object.entries(storageTotals).forEach(([item, qty]) => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td>${item}</td><td>${qty}</td>`;
+      storageTable.appendChild(tr);
+    });
+
+    if (Object.keys(storageTotals).length === 0) {
+      storageSection.style.display = "none";
+    }
+  }
 
   document.getElementById("todayNote").textContent =
     latestNote ? `備考：${latestNote}` : "備考：なし";
