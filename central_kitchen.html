@@ -298,8 +298,14 @@ const storageTable = document.getElementById("storageTable");
 const centralSection = document.getElementById("centralSection");
 const storageSection = document.getElementById("storageSection");
 
+function getJSTDateString() {
+  return new Date().toLocaleDateString("sv-SE", {
+    timeZone: "Asia/Tokyo"
+  });
+}
+
 async function loadTodayOrders() {
-  const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+  const today = getJSTDateString(); // YYYY-MM-DD (JST)
   const dateLabel = new Date(today).toLocaleDateString("ja-JP");
 
   document.getElementById("pageTitle").textContent = `発注一覧（${dateLabel}）`;
@@ -468,7 +474,7 @@ loadTodayOrders();
 ================================ */
 
 // 今日すでに確認したかを localStorage で管理
-const todayKey = new Date().toISOString().slice(0, 10);
+const todayKey = getJSTDateString();
 const PRINT_CONFIRM_KEY = `print_confirmed_${todayKey}`;
 
 async function checkMorningPrintPrompt() {
@@ -488,7 +494,7 @@ async function checkMorningPrintPrompt() {
 
   if (ok) {
     const stores = ["store_a", "store_b", "store_c"];
-    const today = new Date().toISOString().slice(0, 10);
+    const today = getJSTDateString();
 
     for (const storeId of stores) {
       const { data, error } = await supabase
