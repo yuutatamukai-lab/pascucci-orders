@@ -1,10 +1,10 @@
-const CACHE_NAME = "pascucci-v1";
+const CACHE_NAME = "pascucci-v2";
 const ASSETS_TO_CACHE = [
-  "/",
-  "/login.html",
-  "/manifest.json",
-  "/icon-192.png",
-  "/icon-512.png"
+  "./",
+  "./login.html",
+  "./manifest.json",
+  "./icon-192.png",
+  "./icon-512.png"
 ];
 
 self.addEventListener("install", event => {
