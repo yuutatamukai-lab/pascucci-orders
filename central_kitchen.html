@@ -470,6 +470,20 @@ function printCentral(storeId) {
 loadTodayOrders();
 
 /* ===============================
+   JST日付変更検知
+================================ */
+let currentDate = getJSTDateString();
+
+setInterval(() => {
+  const newDate = getJSTDateString();
+
+  if (newDate !== currentDate) {
+    currentDate = newDate;
+    loadTodayOrders();
+  }
+}, 60000); // 1分ごとに日付変更を確認
+
+/* ===============================
    朝6時 印刷確認ダイアログ
 ================================ */
 
