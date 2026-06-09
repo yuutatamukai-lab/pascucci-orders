@@ -80,8 +80,24 @@
 
     <input id="email" type="email" placeholder="メールアドレス" autocomplete="username">
     <input id="password" type="password" placeholder="パスワード" autocomplete="current-password">
+    <label style="text-align:left; font-size:14px; color:#666;">
+      <input id="rememberEmail" type="checkbox"> メールアドレスを記憶する
+    </label>
+    <select id="startPage">
+      <option value="auto">自動判定（推奨）</option>
+      <option value="order">店舗発注画面</option>
+      <option value="central_kitchen">倉庫・CK画面</option>
+      <option value="master">マスター画面</option>
+    </select>
 
     <button id="loginBtn">ログイン</button>
+    <button id="installBtn">📱 アプリとして利用する</button>
+    <div id="iosGuide" style="display:none; text-align:left; font-size:14px; color:#444; border:1px solid #ddd; padding:12px; border-radius:8px; margin-top:8px;">
+      <strong>iPhoneでアプリとして利用する方法</strong><br><br>
+      ① Safariの共有ボタンをタップ<br>
+      ② 「ホーム画面に追加」を選択<br>
+      ③ 「追加」をタップ
+    </div>
     <div id="msg"></div>
   </div>
 
@@ -90,8 +106,20 @@
 
     const emailInput = document.getElementById("email");
     const passwordInput = document.getElementById("password");
+    const rememberEmail = document.getElementById("rememberEmail");
+    const startPage = document.getElementById("startPage");
     const loginBtn = document.getElementById("loginBtn");
     const msg = document.getElementById("msg");
+
+    const savedEmail = localStorage.getItem("savedEmail");
+    if (savedEmail) {
+      emailInput.value = savedEmail;
+      rememberEmail.checked = true;
+    }
+    const savedStartPage = localStorage.getItem("startPage");
+    if (savedStartPage) {
+      startPage.value = savedStartPage;
+    }
 
     async function checkSession() {
       const { data: { session } } = await supabase.auth.getSession();
@@ -110,6 +138,23 @@
     }
 
     function routeUser(user) {
+      const preferredPage = localStorage.getItem("startPage") || "auto";
+
+      if (preferredPage === "order") {
+        location.replace("./order.html");
+        return;
+      }
+
+      if (preferredPage === "central_kitchen") {
+        location.replace("./central_kitchen.html");
+        return;
+      }
+
+      if (preferredPage === "master") {
+        location.replace("./master.html");
+        return;
+      }
+
       // master（集計・マイナス処理専用）
       if (user.role === "wh" && user.store_id === "master") {
         location.replace("./master.html");
@@ -134,6 +179,12 @@
     async function handleLogin() {
       const email = emailInput.value.trim().toLowerCase();
       const password = passwordInput.value.trim();
+      if (rememberEmail.checked) {
+        localStorage.setItem("savedEmail", email);
+      } else {
+        localStorage.removeItem("savedEmail");
+      }
+      localStorage.setItem("startPage", startPage.value);
 
       msg.textContent = "";
       loginBtn.disabled = true;
@@ -172,6 +223,18 @@
     loginBtn.addEventListener("click", handleLogin);
   </script>
   <script>
+  let deferredPrompt;
+
+  const installBtn = document.getElementById("installBtn");
+  const iosGuide = document.getElementById("iosGuide");
+
+  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  const isInStandaloneMode = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+
+  if (isInStandaloneMode) {
+    installBtn.style.display = "none";
+  }
+
   if ("serviceWorker" in navigator) {
     window.addEventListener("load", () => {
       navigator.serviceWorker.register("/service-worker.js")
@@ -179,6 +242,39 @@
         .catch(err => console.error("Service Worker registration failed:", err));
     });
   }
+
+  window.addEventListener("beforeinstallprompt", (e) => {
+    e.preventDefault();
+    deferredPrompt = e;
+  });
+
+  installBtn.addEventListener("click", async () => {
+    if (isIOS) {
+      iosGuide.style.display = iosGuide.style.display === "none" ? "block" : "none";
+      return;
+    }
+
+    if (!deferredPrompt) {
+      alert("この端末ではまだインストール条件を満たしていません。ページを再読み込みしてお試しください。");
+      return;
+    }
+
+    deferredPrompt.prompt();
+
+    const { outcome } = await deferredPrompt.userChoice;
+
+    if (outcome === "accepted") {
+      installBtn.style.display = "none";
+    }
+
+    deferredPrompt = null;
+  });
+
+  window.addEventListener("appinstalled", () => {
+    installBtn.style.display = "none";
+    iosGuide.style.display = "none";
+    console.log("PWA installed");
+  });
   </script>
 </body>
 </html>
