@@ -299,9 +299,18 @@ const centralSection = document.getElementById("centralSection");
 const storageSection = document.getElementById("storageSection");
 
 function getJSTDateString() {
-  return new Date().toLocaleDateString("sv-SE", {
-    timeZone: "Asia/Tokyo"
-  });
+  const now = new Date();
+
+  const tokyoNow = new Date(
+    now.toLocaleString("en-US", { timeZone: "Asia/Tokyo" })
+  );
+
+  // 正午(12:00)を過ぎたら翌日を対象にする
+  if (tokyoNow.getHours() >= 12) {
+    tokyoNow.setDate(tokyoNow.getDate() + 1);
+  }
+
+  return tokyoNow.toLocaleDateString("sv-SE");
 }
 
 async function loadTodayOrders() {
