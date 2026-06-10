@@ -1,4 +1,4 @@
-const CACHE_NAME = "pascucci-v2";
+const CACHE_NAME = "pascucci-v3";
 const ASSETS_TO_CACHE = [
   "./",
   "./login.html",
@@ -30,20 +30,29 @@ self.addEventListener("activate", event => {
 self.addEventListener("fetch", event => {
   if (event.request.method !== "GET") return;
 
+  const url = new URL(event.request.url);
+
+  // login.html は常にネットワーク優先
+  if (url.pathname.endsWith("/login.html") || url.pathname === "/login.html") {
+    event.respondWith(fetch(event.request));
+    return;
+  }
+
   event.respondWith(
-    caches.match(event.request).then(cached => {
-      return (
-        cached ||
-        fetch(event.request)
-          .then(response => {
-            const responseClone = response.clone();
-            caches.open(CACHE_NAME).then(cache => {
-              cache.put(event.request, responseClone);
-            });
-            return response;
-          })
-          .catch(() => cached)
-      );
-    })
+    fetch(event.request)
+      .then(response => {
+        // HTMLはキャッシュしない
+        const contentType = response.headers.get("content-type") || "";
+
+        if (!contentType.includes("text/html")) {
+          const responseClone = response.clone();
+          caches.open(CACHE_NAME).then(cache => {
+            cache.put(event.request, responseClone);
+          });
+        }
+
+        return response;
+      })
+      .catch(() => caches.match(event.request))
   );
 });
