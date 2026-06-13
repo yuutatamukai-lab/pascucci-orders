@@ -153,7 +153,18 @@
 </head>
 
 <body>
-  <h1 id="pageTitle">発注一覧</h1>
+  <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:16px;">
+  <h1 id="pageTitle" style="margin:0;">発注一覧</h1>
+
+  <select id="yearSelector" style="font-size:18px; padding:6px;"></select>
+  <span>年</span>
+
+  <select id="monthSelector" style="font-size:18px; padding:6px;"></select>
+  <span>月</span>
+
+  <select id="daySelector" style="font-size:18px; padding:6px;"></select>
+  <span>日</span>
+</div>
   <button id="logoutBtn" style="
     position:fixed;
     top:12px;
@@ -195,8 +206,6 @@
       麹町 印刷
     </button>
   </div>
-
-
 
   <!-- 折りたたみメニュー -->
   <details open>
@@ -313,11 +322,23 @@ function getJSTDateString() {
   return tokyoNow.toLocaleDateString("sv-SE");
 }
 
+function getSelectedDate() {
+  const y = document.getElementById("yearSelector")?.value;
+  const m = document.getElementById("monthSelector")?.value;
+  const d = document.getElementById("daySelector")?.value;
+
+  if (!y || !m || !d) {
+    return getJSTDateString();
+  }
+
+  return `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+}
+
 async function loadTodayOrders() {
-  const today = getJSTDateString(); // YYYY-MM-DD (JST)
+  const today = getSelectedDate();
   const dateLabel = new Date(today).toLocaleDateString("ja-JP");
 
-  document.getElementById("pageTitle").textContent = `発注一覧（${dateLabel}）`;
+  document.getElementById("pageTitle").textContent = "発注一覧";
   document.getElementById("currentStoreLabel").textContent =
     `表示中店舗：${STORE_NAMES[currentStore] ?? currentStore}`;
 
@@ -475,6 +496,56 @@ function printCentral(storeId) {
   };
 }
 
+const yearSelector = document.getElementById("yearSelector");
+const monthSelector = document.getElementById("monthSelector");
+const daySelector = document.getElementById("daySelector");
+
+function populateDays(year, month) {
+  const daysInMonth = new Date(year, month, 0).getDate();
+  daySelector.innerHTML = "";
+
+  for (let d = 1; d <= daysInMonth; d++) {
+    daySelector.add(new Option(d, d));
+  }
+}
+
+const defaultDate = getJSTDateString();
+const [defaultYear, defaultMonth, defaultDay] = defaultDate.split("-");
+
+for (let y = Number(defaultYear) - 1; y <= Number(defaultYear) + 1; y++) {
+  yearSelector.add(new Option(y, y));
+}
+
+for (let m = 1; m <= 12; m++) {
+  monthSelector.add(new Option(m, m));
+}
+
+yearSelector.value = defaultYear;
+monthSelector.value = Number(defaultMonth);
+
+populateDays(defaultYear, Number(defaultMonth));
+daySelector.value = Number(defaultDay);
+
+function handleDateChange() {
+  populateDays(yearSelector.value, Number(monthSelector.value));
+
+  const maxDay = new Date(
+    yearSelector.value,
+    monthSelector.value,
+    0
+  ).getDate();
+
+  if (Number(daySelector.value) > maxDay) {
+    daySelector.value = maxDay;
+  }
+
+  loadTodayOrders();
+}
+
+yearSelector.addEventListener("change", handleDateChange);
+monthSelector.addEventListener("change", handleDateChange);
+daySelector.addEventListener("change", loadTodayOrders);
+
 // 初期表示
 loadTodayOrders();
 
@@ -488,7 +559,10 @@ setInterval(() => {
 
   if (newDate !== currentDate) {
     currentDate = newDate;
-    loadTodayOrders();
+
+    if (getSelectedDate() === currentDate) {
+      loadTodayOrders();
+    }
   }
 }, 60000); // 1分ごとに日付変更を確認
 
