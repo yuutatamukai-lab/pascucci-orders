@@ -364,7 +364,8 @@ async function loadTodayOrders() {
   // ① まず orders を取得
   const { data: ordersData, error: ordersError } = await supabase
     .from("orders")
-    .select("id, note")
+    .select("id, note, created_at")
+    .order("created_at", { ascending: true })
     .eq("store_id", currentStore)
     .eq("delivery_date", today);
 
@@ -385,13 +386,22 @@ async function loadTodayOrders() {
 
   const orderIds = ordersData.map(o => o.id);
 
-  // 備考は最後のものを採用
-  let latestNote = "";
-  ordersData.forEach(o => {
-    if (o.note && o.note.trim() !== "") {
-      latestNote = o.note;
-    }
-  });
+  // 全ての備考を時系列で収集
+  const notes = ordersData
+    .map(order => {
+      const note = order.note?.trim();
+      if (!note) return null;
+
+      const time = order.created_at
+        ? new Date(order.created_at).toLocaleTimeString("ja-JP", {
+            hour: "2-digit",
+            minute: "2-digit",
+          })
+        : "--:--";
+
+      return `【${time}】 ${note}`;
+    })
+    .filter(Boolean);
 
   // ② order_items を取得
   const { data: itemsData, error: itemsError } = await supabase
@@ -467,7 +477,9 @@ async function loadTodayOrders() {
   }
 
   document.getElementById("todayNote").textContent =
-    latestNote ? `備考：${latestNote}` : "備考：なし";
+    notes.length
+      ? `備考：\n${notes.join("\n")}`
+      : "備考：なし";
 }
 
 // 店舗切り替え
