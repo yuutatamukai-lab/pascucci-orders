@@ -167,6 +167,7 @@
   <tbody id="summaryBody"></tbody>
 </table>
 <div style="margin-top:16px; display:flex; gap:12px; flex-wrap:wrap;">
+  <button id="productionBtn">製造実績入力</button>
   <button id="priceMasterBtn">商品単価管理</button>
   <button id="minusBtn">マイナス処理</button>
   <button id="logout">ログアウト</button>
@@ -491,6 +492,13 @@ monthSelect.addEventListener("change", () => {
     tbody.appendChild(totalRow);
   }
 
+  const productionBtn = document.getElementById("productionBtn");
+
+  if (productionBtn) {
+    productionBtn.addEventListener("click", () => {
+      location.replace("./production.html");
+    });
+  }
   const priceMasterBtn = document.getElementById("priceMasterBtn");
 
   if (priceMasterBtn) {

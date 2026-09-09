@@ -1,0 +1,667 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>製造実績入力</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #f5f5f5;
+      color: #222;
+    }
+    .container {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    h1 { margin: 0 0 20px; font-size: 24px; }
+    .card {
+      background: #fff;
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 2px 8px rgba(0,0,0,.08);
+      margin-bottom: 16px;
+    }
+    label {
+      display: block;
+      font-weight: 600;
+      margin: 0 0 8px;
+    }
+    input, select, button {
+      width: 100%;
+      min-height: 48px;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      padding: 10px 12px;
+      font-size: 16px;
+      background: #fff;
+    }
+    .field { margin-bottom: 16px; }
+    .date-control {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      grid-template-areas:
+        "display display"
+        "prev next"
+        "today today";
+      gap: 8px;
+      align-items: center;
+    }
+    #productionDateDisplay {
+      flex: 1;
+      width: 100%;
+      min-height: 56px;
+      font-size: 18px;
+      font-weight: 600;
+      cursor: pointer;
+      background: #fff;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      padding: 10px 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    #productionDateDisplay { grid-area: display; }
+    #prevDateBtn { grid-area: prev; }
+    #nextDateBtn { grid-area: next; }
+    #todayDateBtn { grid-area: today; }
+    .date-nav {
+      width: 100%;
+      min-width: 0;
+      min-height: 52px;
+      padding: 0 12px;
+      font-size: 18px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .date-today {
+      width: 100%;
+      min-height: 52px;
+      padding: 0 16px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    #datePickerDialog {
+      width: min(92vw, 420px);
+      border: 0;
+      border-radius: 14px;
+      padding: 20px;
+      box-shadow: 0 8px 30px rgba(0,0,0,.2);
+    }
+    #datePickerDialog::backdrop {
+      background: rgba(0,0,0,.4);
+    }
+    .date-picker-title {
+      font-size: 18px;
+      font-weight: 700;
+      margin-bottom: 16px;
+    }
+    .date-picker-fields {
+      display: grid;
+      grid-template-columns: 1.3fr 1fr 1fr;
+      gap: 8px;
+    }
+    .date-picker-fields select {
+      min-height: 56px;
+      font-size: 18px;
+      text-align: center;
+    }
+    .date-picker-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 16px;
+    }
+    .date-picker-actions button {
+      flex: 1;
+      min-height: 52px;
+      cursor: pointer;
+    }
+    #datePickerApplyBtn {
+      background: #222;
+      color: #fff;
+      border-color: #222;
+    }
+    .production-category-tabs {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    .production-category-btn {
+      min-height: 52px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .production-category-btn.active {
+      background: #222;
+      color: #fff;
+      border-color: #222;
+    }
+    @media (max-width: 560px) {
+      .production-category-tabs {
+        gap: 6px;
+      }
+      .production-category-btn {
+        min-height: 50px;
+        padding: 8px 4px;
+        font-size: 14px;
+      }
+    }
+    .item-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 150px 150px;
+      gap: 12px;
+      align-items: center;
+      padding: 14px 0;
+      border-bottom: 1px solid #eee;
+    }
+    .item-row:last-child { border-bottom: 0; }
+    .item-name { font-weight: 600; }
+    .item-meta { color: #777; font-size: 13px; margin-top: 4px; }
+    .item-row input { width: 100%; }
+    .item-conversion {
+      background: #f0f0f0;
+      border-radius: 8px;
+      padding: 10px;
+      min-height: 48px;
+      display: flex;
+      align-items: center;
+      font-size: 14px;
+    }
+    @media (max-width: 700px) {
+      .item-row {
+        grid-template-columns: 1fr 1fr;
+      }
+      .item-name { grid-column: 1 / -1; }
+      .item-conversion { grid-column: 2; }
+    }
+    .conversion {
+      background: #f0f0f0;
+      border-radius: 8px;
+      padding: 12px;
+      margin-top: 8px;
+      font-size: 15px;
+      line-height: 1.6;
+    }
+    .actions {
+      display: flex;
+      gap: 10px;
+      margin-top: 20px;
+    }
+    .actions button { flex: 1; cursor: pointer; }
+    #saveBtn { background: #222; color: #fff; border-color: #222; }
+    #backBtn { background: #fff; }
+    .message {
+      margin-top: 14px;
+      padding: 12px;
+      border-radius: 8px;
+      display: none;
+    }
+    .message.show { display: block; }
+    .message.success { background: #e8f5e9; color: #1b5e20; }
+    .message.error { background: #ffebee; color: #b71c1c; }
+    .history-row {
+      display: grid;
+      grid-template-columns: 1fr 90px 100px;
+      gap: 8px;
+      align-items: center;
+      padding: 10px 0;
+      border-bottom: 1px solid #eee;
+      font-size: 14px;
+    }
+    .history-row:last-child { border-bottom: 0; }
+    .muted { color: #777; font-size: 13px; }
+    @media (max-width: 560px) {
+      .container { padding: 12px; }
+      .card { padding: 16px; }
+      .history-row { grid-template-columns: 1fr 70px 90px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="container">
+    <h1>製造実績入力</h1>
+    <button id="masterBtn" type="button" style="margin-bottom:16px;">マスターメニューへ戻る</button>
+
+    <section class="card">
+      <div class="field">
+        <label for="productionDate">製造年月日</label>
+        <div class="date-control">
+          <button id="productionDateDisplay" type="button">----</button>
+          <button id="prevDateBtn" class="date-nav" type="button" aria-label="前の日">‹ 前日</button>
+          <button id="nextDateBtn" class="date-nav" type="button" aria-label="次の日">翌日 ›</button>
+          <button id="todayDateBtn" class="date-today" type="button">今日</button>
+        </div>
+      </div>
+    </section>
+    <dialog id="datePickerDialog">
+      <div class="date-picker-title">製造年月日を選択</div>
+      <div class="date-picker-fields">
+        <select id="dateYear" aria-label="年"></select>
+        <select id="dateMonth" aria-label="月"></select>
+        <select id="dateDay" aria-label="日"></select>
+      </div>
+      <div class="date-picker-actions">
+        <button id="datePickerCancelBtn" type="button">キャンセル</button>
+        <button id="datePickerApplyBtn" type="button">決定</button>
+      </div>
+    </dialog>
+
+    <section class="card">
+      <h2 style="font-size:18px; margin:0 0 16px;">製造商品</h2>
+      <div id="productionCategoryTabs" class="production-category-tabs">
+        <button type="button" class="production-category-btn active" data-category="Bakery">Bakery</button>
+        <button type="button" class="production-category-btn" data-category="Dolce">Dolce</button>
+        <button type="button" class="production-category-btn" data-category="Pasta">Pasta</button>
+        <button type="button" class="production-category-btn" data-category="Other">Other</button>
+      </div>
+      <div id="itemList">
+        <div class="muted">商品一覧を読み込み中...</div>
+      </div>
+
+      <div class="actions">
+        <button id="backBtn" type="button">戻る</button>
+        <button id="saveBtn" type="button">製造実績を一括登録</button>
+      </div>
+
+      <div id="message" class="message"></div>
+    </section>
+
+    <section class="card">
+      <h2 style="font-size:18px; margin:0 0 12px;">最近の製造実績</h2>
+      <div id="history" class="muted">読み込み中...</div>
+    </section>
+  </main>
+
+  <script type="module">
+    import { supabase } from './supabase-client.js';
+
+    /* ===============================
+       認証チェック
+    ================================= */
+    const {
+      data: { session }
+    } = await supabase.auth.getSession();
+
+    if (!session || !session.user) {
+      location.replace("./login.html");
+      throw new Error("not authenticated");
+    }
+
+    // セッション切れ・ログアウト検知
+    supabase.auth.onAuthStateChange((event) => {
+      if (event === "SIGNED_OUT") {
+        location.replace("./login.html");
+      }
+    });
+
+    const productionDateDisplay = document.getElementById("productionDateDisplay");
+    const datePickerDialog = document.getElementById("datePickerDialog");
+    const dateYear = document.getElementById("dateYear");
+    const dateMonth = document.getElementById("dateMonth");
+    const dateDay = document.getElementById("dateDay");
+    const datePickerCancelBtn = document.getElementById("datePickerCancelBtn");
+    const datePickerApplyBtn = document.getElementById("datePickerApplyBtn");
+    const prevDateBtn = document.getElementById("prevDateBtn");
+    const nextDateBtn = document.getElementById("nextDateBtn");
+    const todayDateBtn = document.getElementById("todayDateBtn");
+    const itemList = document.getElementById("itemList");
+    const saveBtn = document.getElementById("saveBtn");
+    const backBtn = document.getElementById("backBtn");
+    const masterBtn = document.getElementById("masterBtn");
+    const message = document.getElementById("message");
+    const history = document.getElementById("history");
+
+    const today = new Date();
+    const localDate = new Date(today.getTime() - today.getTimezoneOffset() * 60000)
+      .toISOString().slice(0, 10);
+    let productionDate = localDate;
+
+    function formatProductionDate(dateString) {
+      const [year, month, day] = dateString.split("-");
+      return `${year}年${Number(month)}月${Number(day)}日`;
+    }
+
+    function updateProductionDateDisplay() {
+      productionDateDisplay.textContent = formatProductionDate(productionDate);
+    }
+
+    function populateDateYears() {
+      const currentYear = new Date().getFullYear();
+      dateYear.innerHTML = "";
+      for (let year = currentYear - 5; year <= currentYear + 5; year++) {
+        const option = document.createElement("option");
+        option.value = String(year);
+        option.textContent = `${year}年`;
+        dateYear.appendChild(option);
+      }
+    }
+
+    function populateDateMonths() {
+      dateMonth.innerHTML = "";
+      for (let month = 1; month <= 12; month++) {
+        const option = document.createElement("option");
+        option.value = String(month).padStart(2, "0");
+        option.textContent = `${month}月`;
+        dateMonth.appendChild(option);
+      }
+    }
+
+    function populateDateDays(selectedDay = null) {
+      const year = Number(dateYear.value);
+      const month = Number(dateMonth.value);
+      const lastDay = new Date(year, month, 0).getDate();
+      const currentDay = Number(selectedDay || dateDay.value || 1);
+
+      dateDay.innerHTML = "";
+      for (let day = 1; day <= lastDay; day++) {
+        const option = document.createElement("option");
+        option.value = String(day).padStart(2, "0");
+        option.textContent = `${day}日`;
+        dateDay.appendChild(option);
+      }
+
+      dateDay.value = String(Math.min(currentDay, lastDay)).padStart(2, "0");
+    }
+
+    function setDatePickerFromProductionDate() {
+      const [year, month, day] = productionDate.split("-");
+      dateYear.value = year;
+      dateMonth.value = month;
+      populateDateDays(day);
+    }
+
+    populateDateYears();
+    populateDateMonths();
+    setDatePickerFromProductionDate();
+    updateProductionDateDisplay();
+
+    productionDateDisplay.addEventListener("click", () => {
+      setDatePickerFromProductionDate();
+      datePickerDialog.showModal();
+    });
+
+    dateYear.addEventListener("change", () => populateDateDays());
+    dateMonth.addEventListener("change", () => populateDateDays());
+
+    datePickerCancelBtn.addEventListener("click", () => {
+      datePickerDialog.close();
+    });
+
+    datePickerApplyBtn.addEventListener("click", () => {
+      productionDate = `${dateYear.value}-${dateMonth.value}-${dateDay.value}`;
+      updateProductionDateDisplay();
+      datePickerDialog.close();
+    });
+
+    function shiftProductionDate(days) {
+      const [year, month, day] = productionDate.split("-").map(Number);
+      const date = new Date(year, month - 1, day);
+      date.setDate(date.getDate() + days);
+      productionDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000)
+        .toISOString().slice(0, 10);
+      updateProductionDateDisplay();
+    }
+
+    prevDateBtn.addEventListener("click", () => shiftProductionDate(-1));
+    nextDateBtn.addEventListener("click", () => shiftProductionDate(1));
+    todayDateBtn.addEventListener("click", () => {
+      productionDate = localDate;
+      updateProductionDateDisplay();
+    });
+
+    let items = [];
+    let selectedProductionCategory = "Bakery";
+
+    // Supabase の item.category に登録されているアルファベットを、製造画面の表示グループへ振り分ける
+    // 例：Bakery: ["a", "b", "G"]
+    const PRODUCTION_CATEGORY_MAP = {
+      Bakery: ["f","i"],
+      Dolce: ["k"],
+      Pasta: ["a","b"],
+      Other: []
+    };
+
+    const productionCategoryTabs = document.getElementById("productionCategoryTabs");
+    // カテゴリーを切り替えても、入力途中の製造数を保持する
+    const productionQuantities = new Map();
+
+    productionCategoryTabs.querySelectorAll(".production-category-btn").forEach(button => {
+      button.addEventListener("click", () => {
+        selectedProductionCategory = button.dataset.category;
+
+        productionCategoryTabs.querySelectorAll(".production-category-btn").forEach(btn => {
+          btn.classList.toggle("active", btn === button);
+        });
+
+        renderItems();
+      });
+    });
+
+    function showMessage(text, type) {
+      message.textContent = text;
+      message.className = `message show ${type}`;
+    }
+
+    async function loadItems() {
+      const { data, error } = await supabase
+        .from("item")
+        .select("id, name, category, box_capacity")
+        .order("display_order", { ascending: true, nullsLast: true })
+        .order("id", { ascending: true });
+      console.log("item data:", data);
+      console.log("item error:", error);
+      console.log("item count:", data?.length);
+
+      if (error) {
+        console.error("item取得エラー:", error);
+        showMessage(`商品一覧の取得に失敗しました：${error.message}`, "error");
+        itemList.innerHTML = '<div class="muted">商品一覧を取得できませんでした。</div>';
+        return;
+      }
+
+      items = data || [];
+
+      if (items.length === 0) {
+        itemList.innerHTML = '<div class="muted">登録されている商品がありません。</div>';
+        return;
+      }
+
+      renderItems();
+    }
+
+    function renderItems() {
+      itemList.innerHTML = "";
+
+      const allowedCategories = PRODUCTION_CATEGORY_MAP[selectedProductionCategory] || [];
+      const filteredItems = items.filter(item => allowedCategories.includes(item.category));
+
+      if (filteredItems.length === 0) {
+        itemList.innerHTML = `<div class="muted">${selectedProductionCategory} に登録されている商品がありません。</div>`;
+        return;
+      }
+
+      for (const item of filteredItems) {
+        const row = document.createElement("div");
+        row.className = "item-row";
+        row.dataset.itemId = item.id;
+
+        const capacity = Number(item.box_capacity || 0);
+
+        row.innerHTML = `
+          <div>
+            <div class="item-name">${item.name}</div>
+            <div class="item-meta">1BOX：${capacity ? `${capacity}パック` : "未設定"}</div>
+          </div>
+          <input
+            class="production-quantity"
+            type="number"
+            min="0"
+            step="1"
+            inputmode="numeric"
+            placeholder="0"
+            value="${productionQuantities.get(String(item.id)) ?? ""}"
+            data-item-id="${item.id}"
+            data-box-capacity="${capacity}"
+          >
+          <div class="item-conversion" data-conversion-for="${item.id}">0パック</div>
+        `;
+
+        itemList.appendChild(row);
+      }
+
+      itemList.querySelectorAll(".production-quantity").forEach(input => {
+        input.addEventListener("input", () => {
+          const packs = Number(input.value || 0);
+          const itemId = String(input.dataset.itemId);
+          if (input.value.trim() === "") {
+            productionQuantities.delete(itemId);
+          } else {
+            productionQuantities.set(itemId, input.value);
+          }
+          const capacity = Number(input.dataset.boxCapacity || 0);
+          const target = itemList.querySelector(`[data-conversion-for="${input.dataset.itemId}"]`);
+
+          if (!target) return;
+
+          if (!packs) {
+            target.textContent = "0パック";
+            return;
+          }
+
+          if (!capacity) {
+            target.textContent = `${packs}パック（BOX入数未設定）`;
+            return;
+          }
+
+          const boxes = Math.floor(packs / capacity);
+          const remainder = packs % capacity;
+          target.textContent = `${packs}パック → ${boxes} BOX${remainder ? ` + ${remainder}パック` : ""}`;
+        });
+      });
+    }
+
+    async function loadHistory() {
+      const { data, error } = await supabase
+        .from("production_batches")
+        .select("id, production_date, item_id, quantity_packs")
+        .order("production_date", { ascending: false })
+        .limit(20);
+
+      if (error) {
+        history.textContent = `製造実績を取得できません：${error.message}`;
+        return;
+      }
+
+      if (!data || data.length === 0) {
+        history.textContent = "製造実績はまだありません。";
+        return;
+      }
+
+      history.innerHTML = "";
+      for (const row of data) {
+        const item = items.find(x => String(x.id) === String(row.item_id));
+        const itemName = item ? item.name : `商品ID: ${row.item_id}`;
+        const capacity = item ? Number(item.box_capacity || 0) : 0;
+        const packs = Number(row.quantity_packs || 0);
+        const boxText = capacity
+          ? `${Math.floor(packs / capacity)} BOX${packs % capacity ? ` + ${packs % capacity}` : ""}`
+          : "-";
+
+        const div = document.createElement("div");
+        div.className = "history-row";
+        div.innerHTML = `
+          <div><strong>${itemName}</strong><br><span class="muted">${row.production_date}</span></div>
+          <div>${packs}パック</div>
+          <div>${boxText}</div>
+        `;
+        history.appendChild(div);
+      }
+    }
+
+    async function saveProduction() {
+      const date = productionDate;
+
+      if (!date) {
+        showMessage("製造年月日を入力してください。", "error");
+        return;
+      }
+
+      const entries = [];
+      let invalid = false;
+
+      itemList.querySelectorAll(".production-quantity").forEach(input => {
+        const raw = input.value.trim();
+        if (!raw) return;
+
+        const packs = Number(raw);
+        if (!Number.isInteger(packs) || packs <= 0) {
+          invalid = true;
+          return;
+        }
+
+        entries.push({
+          production_date: date,
+          item_id: input.dataset.itemId,
+          quantity_packs: packs
+        });
+      });
+
+      if (invalid) {
+        showMessage("製造数は1以上の整数で入力してください。", "error");
+        return;
+      }
+
+      if (entries.length === 0) {
+        showMessage("製造数を1つ以上入力してください。", "error");
+        return;
+      }
+
+      saveBtn.disabled = true;
+      saveBtn.textContent = "登録中...";
+
+      const { error } = await supabase
+        .from("production_batches")
+        .insert(entries);
+
+      saveBtn.disabled = false;
+      saveBtn.textContent = "製造実績を一括登録";
+
+      if (error) {
+        showMessage(`登録に失敗しました：${error.message}`, "error");
+        return;
+      }
+
+      productionQuantities.clear();
+      showMessage(`${entries.length}商品の製造実績を登録しました。`, "success");
+
+      itemList.querySelectorAll(".production-quantity").forEach(input => {
+        input.value = "";
+      });
+
+      itemList.querySelectorAll(".item-conversion").forEach(target => {
+        target.textContent = "0パック";
+      });
+
+      await loadHistory();
+    }
+
+    saveBtn.addEventListener("click", saveProduction);
+    backBtn.addEventListener("click", () => location.replace("./master.html"));
+    masterBtn.addEventListener("click", () => location.replace("./master.html"));
+
+    try {
+      await loadItems();
+      await loadHistory();
+    } catch (error) {
+      console.error("製造実績画面の初期化エラー:", error);
+      message.textContent = `画面の初期化に失敗しました：${error.message}`;
+      message.className = "message show error";
+    }
+  </script>
+</body>
+</html>
